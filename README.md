@@ -83,6 +83,19 @@ Readiness check:
 http://localhost:8000/ready
 ```
 
+### Database Migrations
+
+Database tables are managed with Alembic. A migration is a versioned database change that can be reviewed, committed, and replayed in every environment.
+
+After the Docker services are running, open a second terminal and run:
+
+```powershell
+docker compose exec api alembic -c alembic.ini revision --autogenerate -m "create initial rental schema"
+docker compose exec api alembic -c alembic.ini upgrade head
+```
+
+The first command creates a migration file from the SQLAlchemy models. The second command applies it to PostgreSQL.
+
 ## Git Workflow
 
 Your first commit:
