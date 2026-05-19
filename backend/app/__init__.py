@@ -1,0 +1,1 @@
+"""CampusRent API package."""
