@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from sqlalchemy import select
 
-from app.db.models import ListingSource, School, SourceTrustLevel
+from app.db.models import Listing, ListingSource, ListingStatus, School, SourceTrustLevel
 from app.db.session import SessionLocal
 
 SEED_SCHOOLS = [
@@ -42,6 +42,90 @@ SEED_SOURCES = [
     }
 ]
 
+SEED_LISTINGS = [
+    {
+        "source_listing_id": "manual-nyu-001",
+        "source_url": "https://campusrent.local/manual/nyu-001",
+        "title": "Studio near Washington Square Park",
+        "description": "Verified starter listing for local development near NYU.",
+        "address": "12 Waverly Pl",
+        "city": "New York",
+        "state": "NY",
+        "postal_code": "10003",
+        "latitude": Decimal("40.730100"),
+        "longitude": Decimal("-73.995700"),
+        "monthly_rent": 2450,
+        "bedrooms": Decimal("0.0"),
+        "bathrooms": Decimal("1.0"),
+        "square_feet": 420,
+        "status": ListingStatus.ACTIVE,
+    },
+    {
+        "source_listing_id": "manual-nyu-002",
+        "source_url": "https://campusrent.local/manual/nyu-002",
+        "title": "Two bedroom apartment in East Village",
+        "description": "Roommate-friendly mock listing with a strong transit location.",
+        "address": "210 E 9th St",
+        "city": "New York",
+        "state": "NY",
+        "postal_code": "10003",
+        "latitude": Decimal("40.729000"),
+        "longitude": Decimal("-73.987200"),
+        "monthly_rent": 3900,
+        "bedrooms": Decimal("2.0"),
+        "bathrooms": Decimal("1.0"),
+        "square_feet": 760,
+        "status": ListingStatus.ACTIVE,
+    },
+    {
+        "source_listing_id": "manual-columbia-001",
+        "source_url": "https://campusrent.local/manual/columbia-001",
+        "title": "One bedroom near Morningside Heights",
+        "description": "Verified starter listing for students near Columbia University.",
+        "address": "501 W 112th St",
+        "city": "New York",
+        "state": "NY",
+        "postal_code": "10025",
+        "latitude": Decimal("40.805900"),
+        "longitude": Decimal("-73.963300"),
+        "monthly_rent": 2850,
+        "bedrooms": Decimal("1.0"),
+        "bathrooms": Decimal("1.0"),
+        "square_feet": 610,
+        "status": ListingStatus.ACTIVE,
+    },
+    {
+        "source_listing_id": "manual-berkeley-001",
+        "source_url": "https://campusrent.local/manual/berkeley-001",
+        "title": "Shared apartment close to UC Berkeley",
+        "description": "Budget-oriented mock listing within walking distance of campus.",
+        "address": "2400 Durant Ave",
+        "city": "Berkeley",
+        "state": "CA",
+        "postal_code": "94704",
+        "latitude": Decimal("37.867900"),
+        "longitude": Decimal("-122.260700"),
+        "monthly_rent": 1650,
+        "bedrooms": Decimal("1.0"),
+        "bathrooms": Decimal("1.0"),
+        "square_feet": 540,
+        "status": ListingStatus.ACTIVE,
+    },
+]
+
+
+def json_safe_payload(data: dict) -> dict:
+    payload = {}
+    for key, value in data.items():
+        if isinstance(value, Decimal):
+            payload[key] = str(value)
+        elif isinstance(value, ListingStatus):
+            payload[key] = value.value
+        else:
+            payload[key] = value
+
+    return payload
+
 
 def upsert_schools() -> None:
     with SessionLocal() as session:
@@ -73,10 +157,39 @@ def upsert_sources() -> None:
         session.commit()
 
 
+def upsert_listings() -> None:
+    with SessionLocal() as session:
+        source = session.scalar(
+            select(ListingSource).where(ListingSource.name == "Manual Verified Dataset")
+        )
+        if source is None:
+            raise RuntimeError("Manual Verified Dataset source must be seeded before listings.")
+
+        for listing_data in SEED_LISTINGS:
+            listing = session.scalar(
+                select(Listing).where(Listing.source_url == listing_data["source_url"])
+            )
+            payload = {
+                **listing_data,
+                "source_id": source.id,
+                "raw_payload": json_safe_payload(listing_data),
+            }
+
+            if listing is None:
+                session.add(Listing(**payload))
+                continue
+
+            for key, value in payload.items():
+                setattr(listing, key, value)
+
+        session.commit()
+
+
 def main() -> None:
     upsert_schools()
     upsert_sources()
-    print("Seeded schools and listing sources.")
+    upsert_listings()
+    print("Seeded schools, listing sources, and mock listings.")
 
 
 if __name__ == "__main__":

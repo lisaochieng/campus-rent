@@ -89,6 +89,13 @@ Schools endpoint after migrations and seed data:
 http://localhost:8000/api/v1/schools
 ```
 
+Listings endpoint after seed data:
+
+```text
+http://localhost:8000/api/v1/listings
+http://localhost:8000/api/v1/listings?city=New%20York&max_rent=3000
+```
+
 ### Database Migrations
 
 Database tables are managed with Alembic. A migration is a versioned database change that can be reviewed, committed, and replayed in every environment.

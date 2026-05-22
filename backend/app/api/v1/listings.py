@@ -1,0 +1,83 @@
+from decimal import Decimal
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session, selectinload
+
+from app.db.models import Listing, ListingSource, ListingStatus
+from app.db.session import get_db
+from app.schemas.listing import ListingCreate, ListingRead
+
+router = APIRouter(prefix="/listings", tags=["listings"])
+
+
+@router.get("", response_model=list[ListingRead])
+def list_listings(
+    city: str | None = None,
+    state: str | None = None,
+    max_rent: int | None = Query(default=None, gt=0),
+    min_bedrooms: Decimal | None = Query(default=None, ge=0),
+    status_filter: ListingStatus = Query(default=ListingStatus.ACTIVE, alias="status"),
+    limit: int = Query(default=25, ge=1, le=100),
+    db: Session = Depends(get_db),
+) -> list[Listing]:
+    statement = (
+        select(Listing)
+        .options(selectinload(Listing.source))
+        .where(Listing.status == status_filter)
+        .order_by(Listing.monthly_rent.asc(), Listing.created_at.desc())
+        .limit(limit)
+    )
+
+    if city:
+        statement = statement.where(Listing.city.ilike(city))
+    if state:
+        statement = statement.where(Listing.state.ilike(state))
+    if max_rent:
+        statement = statement.where(Listing.monthly_rent <= max_rent)
+    if min_bedrooms is not None:
+        statement = statement.where(Listing.bedrooms >= min_bedrooms)
+
+    return list(db.scalars(statement).all())
+
+
+@router.post("", response_model=ListingRead, status_code=status.HTTP_201_CREATED)
+def create_listing(payload: ListingCreate, db: Session = Depends(get_db)) -> Listing:
+    source = db.scalar(select(ListingSource).where(ListingSource.name == payload.source_name))
+    if source is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Unknown listing source: {payload.source_name}",
+        )
+
+    existing = db.scalar(select(Listing).where(Listing.source_url == payload.source_url))
+    if existing is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="A listing with this source_url already exists.",
+        )
+
+    listing = Listing(
+        source_id=source.id,
+        source_listing_id=payload.source_listing_id,
+        source_url=payload.source_url,
+        title=payload.title,
+        description=payload.description,
+        address=payload.address,
+        city=payload.city,
+        state=payload.state,
+        postal_code=payload.postal_code,
+        latitude=payload.latitude,
+        longitude=payload.longitude,
+        monthly_rent=payload.monthly_rent,
+        bedrooms=payload.bedrooms,
+        bathrooms=payload.bathrooms,
+        square_feet=payload.square_feet,
+        status=ListingStatus.ACTIVE,
+        raw_payload=payload.model_dump(mode="json"),
+    )
+    db.add(listing)
+    db.commit()
+    db.refresh(listing)
+
+    return listing
