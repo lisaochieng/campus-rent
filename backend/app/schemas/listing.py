@@ -38,6 +38,16 @@ class ListingRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ListingSearchResult(BaseModel):
+    listing: ListingRead
+    distance_miles: float
+    distance_score: int
+    affordability_score: int
+    freshness_score: int
+    scam_safety_score: int
+    campus_rent_score: int
+
+
 class ListingCreate(BaseModel):
     source_name: str = Field(default="Manual Verified Dataset", max_length=120)
     source_listing_id: str | None = Field(default=None, max_length=255)

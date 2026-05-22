@@ -96,6 +96,14 @@ http://localhost:8000/api/v1/listings
 http://localhost:8000/api/v1/listings?city=New%20York&max_rent=3000
 ```
 
+School-based ranked search:
+
+```text
+http://localhost:8000/api/v1/listings/search?school_id=SCHOOL_ID&max_rent=3000
+```
+
+Use `/api/v1/schools` to get a valid `SCHOOL_ID`.
+
 ### Database Migrations
 
 Database tables are managed with Alembic. A migration is a versioned database change that can be reviewed, committed, and replayed in every environment.

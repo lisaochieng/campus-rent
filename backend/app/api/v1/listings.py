@@ -1,12 +1,14 @@
 from decimal import Decimal
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.db.models import Listing, ListingSource, ListingStatus
+from app.db.models import Listing, ListingSource, ListingStatus, School
 from app.db.session import get_db
-from app.schemas.listing import ListingCreate, ListingRead
+from app.schemas.listing import ListingCreate, ListingRead, ListingSearchResult
+from app.services.scoring import campus_rent_score
 
 router = APIRouter(prefix="/listings", tags=["listings"])
 
@@ -39,6 +41,58 @@ def list_listings(
         statement = statement.where(Listing.bedrooms >= min_bedrooms)
 
     return list(db.scalars(statement).all())
+
+
+@router.get("/search", response_model=list[ListingSearchResult])
+def search_listings_for_school(
+    school_id: UUID,
+    max_rent: int | None = Query(default=None, gt=0),
+    min_bedrooms: Decimal | None = Query(default=None, ge=0),
+    max_distance_miles: float | None = Query(default=None, gt=0),
+    limit: int = Query(default=25, ge=1, le=100),
+    db: Session = Depends(get_db),
+) -> list[ListingSearchResult]:
+    school = db.get(School, school_id)
+    if school is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="School not found.",
+        )
+
+    statement = (
+        select(Listing)
+        .options(selectinload(Listing.source))
+        .where(Listing.status == ListingStatus.ACTIVE)
+    )
+    if max_rent:
+        statement = statement.where(Listing.monthly_rent <= max_rent)
+    if min_bedrooms is not None:
+        statement = statement.where(Listing.bedrooms >= min_bedrooms)
+
+    listings = db.scalars(statement).all()
+    results = []
+    for listing in listings:
+        score = campus_rent_score(listing=listing, school=school, max_budget=max_rent)
+        if (
+            max_distance_miles is not None
+            and score["distance_miles"] > max_distance_miles
+        ):
+            continue
+
+        results.append(
+            ListingSearchResult(
+                listing=listing,
+                distance_miles=score["distance_miles"],
+                distance_score=score["distance_score"],
+                affordability_score=score["affordability_score"],
+                freshness_score=score["freshness_score"],
+                scam_safety_score=score["scam_safety_score"],
+                campus_rent_score=score["campus_rent_score"],
+            )
+        )
+
+    results.sort(key=lambda result: result.campus_rent_score, reverse=True)
+    return results[:limit]
 
 
 @router.post("", response_model=ListingRead, status_code=status.HTTP_201_CREATED)
