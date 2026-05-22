@@ -1,6 +1,9 @@
 from dataclasses import dataclass
 
-from app.db.models import Listing, SourceTrustLevel
+from sqlalchemy import delete
+from sqlalchemy.orm import Session
+
+from app.db.models import Listing, ScamSignal, SourceTrustLevel
 
 SUSPICIOUS_PHRASES = (
     "wire money",
@@ -77,5 +80,29 @@ def detect_scam_signals(listing: Listing) -> list[ScamSignalResult]:
 
 
 def scam_safety_score(listing: Listing) -> int:
-    total_penalty = sum(signal.severity for signal in detect_scam_signals(listing))
+    if listing.scam_signals:
+        total_penalty = sum(signal.severity for signal in listing.scam_signals)
+    else:
+        total_penalty = sum(signal.severity for signal in detect_scam_signals(listing))
+
     return max(0, 100 - total_penalty)
+
+
+def refresh_persisted_scam_signals(db: Session, listing: Listing) -> list[ScamSignal]:
+    detected_signals = detect_scam_signals(listing)
+
+    db.execute(delete(ScamSignal).where(ScamSignal.listing_id == listing.id))
+    persisted_signals = [
+        ScamSignal(
+            listing_id=listing.id,
+            signal_type=signal.signal_type,
+            severity=signal.severity,
+            explanation=signal.explanation,
+            evidence={"source_url": listing.source_url},
+        )
+        for signal in detected_signals
+    ]
+    db.add_all(persisted_signals)
+    db.flush()
+
+    return persisted_signals

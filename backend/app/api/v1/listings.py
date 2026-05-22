@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.db.models import Listing, ListingSource, ListingStatus, School
 from app.db.session import get_db
-from app.schemas.listing import ListingCreate, ListingRead, ListingSearchResult
-from app.services.scam_detection import detect_scam_signals
+from app.schemas.listing import ListingCreate, ListingRead, ListingSearchResult, ScamSignalRead
+from app.services.scam_detection import detect_scam_signals, refresh_persisted_scam_signals
 from app.services.scoring import campus_rent_score
 
 router = APIRouter(prefix="/listings", tags=["listings"])
@@ -26,7 +26,7 @@ def list_listings(
 ) -> list[Listing]:
     statement = (
         select(Listing)
-        .options(selectinload(Listing.source))
+        .options(selectinload(Listing.source), selectinload(Listing.scam_signals))
         .where(Listing.status == status_filter)
         .order_by(Listing.monthly_rent.asc(), Listing.created_at.desc())
         .limit(limit)
@@ -62,7 +62,7 @@ def search_listings_for_school(
 
     statement = (
         select(Listing)
-        .options(selectinload(Listing.source))
+        .options(selectinload(Listing.source), selectinload(Listing.scam_signals))
         .where(Listing.status == ListingStatus.ACTIVE)
     )
     if max_rent:
@@ -74,7 +74,7 @@ def search_listings_for_school(
     results = []
     for listing in listings:
         score = campus_rent_score(listing=listing, school=school, max_budget=max_rent)
-        scam_signals = detect_scam_signals(listing)
+        scam_signals = listing.scam_signals or detect_scam_signals(listing)
         if (
             max_distance_miles is not None
             and score["distance_miles"] > max_distance_miles
@@ -89,7 +89,14 @@ def search_listings_for_school(
                 affordability_score=score["affordability_score"],
                 freshness_score=score["freshness_score"],
                 scam_safety_score=score["scam_safety_score"],
-                scam_signals=[signal.explanation for signal in scam_signals],
+                scam_signals=[
+                    ScamSignalRead(
+                        signal_type=signal.signal_type,
+                        severity=signal.severity,
+                        explanation=signal.explanation,
+                    )
+                    for signal in scam_signals
+                ],
                 campus_rent_score=score["campus_rent_score"],
             )
         )
@@ -134,6 +141,9 @@ def create_listing(payload: ListingCreate, db: Session = Depends(get_db)) -> Lis
         raw_payload=payload.model_dump(mode="json"),
     )
     db.add(listing)
+    db.commit()
+    db.refresh(listing)
+    refresh_persisted_scam_signals(db, listing)
     db.commit()
     db.refresh(listing)
 

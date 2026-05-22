@@ -38,6 +38,12 @@ class ListingRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ScamSignalRead(BaseModel):
+    signal_type: str
+    severity: int
+    explanation: str
+
+
 class ListingSearchResult(BaseModel):
     listing: ListingRead
     distance_miles: float
@@ -45,7 +51,7 @@ class ListingSearchResult(BaseModel):
     affordability_score: int
     freshness_score: int
     scam_safety_score: int
-    scam_signals: list[str]
+    scam_signals: list[ScamSignalRead]
     campus_rent_score: int
 
 

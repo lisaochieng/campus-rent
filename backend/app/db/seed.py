@@ -4,6 +4,7 @@ from sqlalchemy import select
 
 from app.db.models import Listing, ListingSource, ListingStatus, School, SourceTrustLevel
 from app.db.session import SessionLocal
+from app.services.scam_detection import refresh_persisted_scam_signals
 
 SEED_SCHOOLS = [
     {
@@ -198,6 +199,15 @@ def upsert_listings() -> None:
 
             for key, value in payload.items():
                 setattr(listing, key, value)
+
+        session.flush()
+
+        for listing_data in SEED_LISTINGS:
+            listing = session.scalar(
+                select(Listing).where(Listing.source_url == listing_data["source_url"])
+            )
+            if listing is not None:
+                refresh_persisted_scam_signals(session, listing)
 
         session.commit()
 
