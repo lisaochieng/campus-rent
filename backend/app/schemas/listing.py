@@ -43,6 +43,12 @@ class ScamSignalRead(BaseModel):
     severity: int
     explanation: str
 
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ListingDetailRead(ListingRead):
+    scam_signals: list[ScamSignalRead]
+
 
 class ListingSearchResult(BaseModel):
     listing: ListingRead

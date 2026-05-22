@@ -7,7 +7,13 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.db.models import Listing, ListingSource, ListingStatus, School
 from app.db.session import get_db
-from app.schemas.listing import ListingCreate, ListingRead, ListingSearchResult, ScamSignalRead
+from app.schemas.listing import (
+    ListingCreate,
+    ListingDetailRead,
+    ListingRead,
+    ListingSearchResult,
+    ScamSignalRead,
+)
 from app.services.scam_detection import detect_scam_signals, refresh_persisted_scam_signals
 from app.services.scoring import campus_rent_score
 
@@ -103,6 +109,22 @@ def search_listings_for_school(
 
     results.sort(key=lambda result: result.campus_rent_score, reverse=True)
     return results[:limit]
+
+
+@router.get("/{listing_id}", response_model=ListingDetailRead)
+def get_listing(listing_id: UUID, db: Session = Depends(get_db)) -> Listing:
+    listing = db.scalar(
+        select(Listing)
+        .options(selectinload(Listing.source), selectinload(Listing.scam_signals))
+        .where(Listing.id == listing_id)
+    )
+    if listing is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Listing not found.",
+        )
+
+    return listing
 
 
 @router.post("", response_model=ListingRead, status_code=status.HTTP_201_CREATED)
