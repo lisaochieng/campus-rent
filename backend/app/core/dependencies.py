@@ -7,7 +7,7 @@ from app.core.config import settings
 
 def check_postgres() -> bool:
     try:
-        with psycopg.connect(settings.postgres_dsn, connect_timeout=2) as connection:
+        with psycopg.connect(settings.postgres_driver_dsn, connect_timeout=2) as connection:
             with connection.cursor() as cursor:
                 cursor.execute("SELECT 1")
                 return cursor.fetchone() == (1,)

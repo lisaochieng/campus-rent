@@ -16,6 +16,7 @@
 - Listing events table for tracking when data was observed
 - Scam signal table for explainable risk scoring
 - Alembic migrations for versioned database changes
+- Seed data for local development
 
 ## Phase 3: Ingestion
 

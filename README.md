@@ -83,6 +83,12 @@ Readiness check:
 http://localhost:8000/ready
 ```
 
+Schools endpoint after migrations and seed data:
+
+```text
+http://localhost:8000/api/v1/schools
+```
+
 ### Database Migrations
 
 Database tables are managed with Alembic. A migration is a versioned database change that can be reviewed, committed, and replayed in every environment.
@@ -90,11 +96,27 @@ Database tables are managed with Alembic. A migration is a versioned database ch
 After the Docker services are running, open a second terminal and run:
 
 ```powershell
-docker compose exec api alembic -c alembic.ini revision --autogenerate -m "create initial rental schema"
 docker compose exec api alembic -c alembic.ini upgrade head
 ```
 
-The first command creates a migration file from the SQLAlchemy models. The second command applies it to PostgreSQL.
+That command applies all pending migrations to PostgreSQL.
+
+To add starter data for local development:
+
+```powershell
+docker compose exec api python -m app.db.seed
+```
+
+Seed data is intentionally small and safe. It gives the backend known schools and a trusted manual listing source before the ingestion system exists.
+
+When models change later, create a new migration:
+
+```powershell
+docker compose exec api alembic -c alembic.ini revision --autogenerate -m "describe the schema change"
+docker compose exec api alembic -c alembic.ini upgrade head
+```
+
+The first command creates a migration file from model changes. The second command applies it.
 
 ## Git Workflow
 
