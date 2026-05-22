@@ -2,6 +2,7 @@ from decimal import Decimal
 from math import asin, cos, radians, sin, sqrt
 
 from app.db.models import Listing, School
+from app.services.scam_detection import scam_safety_score
 
 EARTH_RADIUS_MILES = 3958.8
 
@@ -75,13 +76,13 @@ def campus_rent_score(
     distance_component = distance_score(distance)
     affordability_component = affordability_score(listing.monthly_rent, max_budget)
     freshness_component = 80
-    scam_risk_component = 100
+    scam_safety_component = scam_safety_score(listing)
 
     total = round(
         (distance_component * 0.35)
         + (affordability_component * 0.35)
         + (freshness_component * 0.15)
-        + (scam_risk_component * 0.15)
+        + (scam_safety_component * 0.15)
     )
 
     return {
@@ -89,6 +90,6 @@ def campus_rent_score(
         "distance_score": distance_component,
         "affordability_score": affordability_component,
         "freshness_score": freshness_component,
-        "scam_safety_score": scam_risk_component,
+        "scam_safety_score": scam_safety_component,
         "campus_rent_score": total,
     }

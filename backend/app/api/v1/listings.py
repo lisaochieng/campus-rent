@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.db.models import Listing, ListingSource, ListingStatus, School
 from app.db.session import get_db
 from app.schemas.listing import ListingCreate, ListingRead, ListingSearchResult
+from app.services.scam_detection import detect_scam_signals
 from app.services.scoring import campus_rent_score
 
 router = APIRouter(prefix="/listings", tags=["listings"])
@@ -73,6 +74,7 @@ def search_listings_for_school(
     results = []
     for listing in listings:
         score = campus_rent_score(listing=listing, school=school, max_budget=max_rent)
+        scam_signals = detect_scam_signals(listing)
         if (
             max_distance_miles is not None
             and score["distance_miles"] > max_distance_miles
@@ -87,6 +89,7 @@ def search_listings_for_school(
                 affordability_score=score["affordability_score"],
                 freshness_score=score["freshness_score"],
                 scam_safety_score=score["scam_safety_score"],
+                scam_signals=[signal.explanation for signal in scam_signals],
                 campus_rent_score=score["campus_rent_score"],
             )
         )

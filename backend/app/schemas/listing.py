@@ -45,6 +45,7 @@ class ListingSearchResult(BaseModel):
     affordability_score: int
     freshness_score: int
     scam_safety_score: int
+    scam_signals: list[str]
     campus_rent_score: int
 
 

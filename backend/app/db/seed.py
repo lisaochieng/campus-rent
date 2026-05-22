@@ -111,6 +111,23 @@ SEED_LISTINGS = [
         "square_feet": 540,
         "status": ListingStatus.ACTIVE,
     },
+    {
+        "source_listing_id": "manual-risky-001",
+        "source_url": "https://campusrent.local/manual/risky-001",
+        "title": "Cheap luxury studio urgent deal no viewing needed",
+        "description": "Owner is out of country. Deposit before viewing by wire money to hold unit.",
+        "address": None,
+        "city": "New York",
+        "state": "NY",
+        "postal_code": "10003",
+        "latitude": None,
+        "longitude": None,
+        "monthly_rent": 700,
+        "bedrooms": Decimal("0.0"),
+        "bathrooms": Decimal("1.0"),
+        "square_feet": None,
+        "status": ListingStatus.ACTIVE,
+    },
 ]
 
 

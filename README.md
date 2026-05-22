@@ -104,6 +104,14 @@ http://localhost:8000/api/v1/listings/search?school_id=SCHOOL_ID&max_rent=3000
 
 Use `/api/v1/schools` to get a valid `SCHOOL_ID`.
 
+Ranked search includes explainable scoring fields:
+
+- Distance from the selected school
+- Budget fit
+- Listing freshness placeholder
+- Scam safety score
+- Scam signal explanations when suspicious patterns are detected
+
 ### Database Migrations
 
 Database tables are managed with Alembic. A migration is a versioned database change that can be reviewed, committed, and replayed in every environment.
