@@ -22,31 +22,9 @@ from app.services.cache import (
 from app.services.scam_detection import detect_scam_signals, refresh_persisted_scam_signals
 from app.services.scoring import campus_rent_score
 from app.services.search_index import index_listing, get_search_client, search_listing_ids
+from app.services.school_matching import find_school_by_name
 
 router = APIRouter(prefix="/listings", tags=["listings"])
-
-
-def school_acronym(name: str) -> str:
-    ignored_words = {"of", "the", "and", "at"}
-    return "".join(
-        word[0].upper()
-        for word in name.replace(",", " ").split()
-        if word.lower() not in ignored_words
-    )
-
-
-def find_school_by_name(db: Session, school_name: str) -> School | None:
-    school = db.scalar(select(School).where(School.name.ilike(f"%{school_name}%")))
-    if school is not None:
-        return school
-
-    normalized_query = school_name.strip().upper().replace(".", "")
-    schools = db.scalars(select(School)).all()
-    for candidate in schools:
-        if school_acronym(candidate.name) == normalized_query:
-            return candidate
-
-    return None
 
 
 def listing_search_result(

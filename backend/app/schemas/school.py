@@ -14,3 +14,7 @@ class SchoolRead(BaseModel):
     longitude: Decimal
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SchoolSearchResult(SchoolRead):
+    acronym: str
