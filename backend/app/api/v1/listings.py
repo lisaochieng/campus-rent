@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.schemas.listing import (
     ListingCreate,
     ListingDetailRead,
+    ListingFilterOptions,
     ListingRead,
     ListingSearchResult,
     ScamSignalRead,
@@ -130,6 +131,61 @@ def fast_search_listings(
     listing_by_id = {listing.id: listing for listing in listings}
 
     return [listing_by_id[listing_id] for listing_id in listing_ids if listing_id in listing_by_id]
+
+
+@router.get("/filter-options", response_model=ListingFilterOptions)
+def get_listing_filter_options(
+    school_name: str = Query(min_length=2),
+    min_scam_safety: int = Query(default=70, ge=0, le=100),
+    db: Session = Depends(get_db),
+) -> ListingFilterOptions:
+    school = find_school_by_name(db, school_name)
+    if school is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="School not found.",
+        )
+
+    listings = db.scalars(
+        select(Listing)
+        .options(selectinload(Listing.source), selectinload(Listing.scam_signals))
+        .where(
+            Listing.status == ListingStatus.ACTIVE,
+            Listing.state.ilike(school.state),
+        )
+    ).all()
+
+    nearby_results = [
+        listing_search_result(listing=listing, school=school, max_rent=None)
+        for listing in listings
+    ]
+    safe_results = [
+        result
+        for result in nearby_results
+        if result.scam_safety_score >= min_scam_safety
+    ]
+    rents = [result.listing.monthly_rent for result in safe_results]
+    bedroom_options = sorted(
+        {
+            result.listing.bedrooms
+            for result in safe_results
+            if result.listing.bedrooms is not None
+        }
+    )
+    city_options = sorted({result.listing.city for result in safe_results})
+
+    return ListingFilterOptions(
+        school_name=school.name,
+        city=school.city,
+        state=school.state,
+        total_listings=len(nearby_results),
+        safe_listings=len(safe_results),
+        min_rent=min(rents) if rents else None,
+        max_rent=max(rents) if rents else None,
+        bedroom_options=bedroom_options,
+        city_options=city_options,
+        suggested_max_distance_miles=[0.5, 1, 2, 5, 10],
+    )
 
 
 @router.get("/recommendations", response_model=list[ListingSearchResult])

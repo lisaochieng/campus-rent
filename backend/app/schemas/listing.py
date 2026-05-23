@@ -75,6 +75,19 @@ class ListingSearchResult(BaseModel):
     campus_rent_score: int
 
 
+class ListingFilterOptions(BaseModel):
+    school_name: str
+    city: str
+    state: str
+    total_listings: int
+    safe_listings: int
+    min_rent: int | None
+    max_rent: int | None
+    bedroom_options: list[Decimal]
+    city_options: list[str]
+    suggested_max_distance_miles: list[float]
+
+
 class ListingCreate(BaseModel):
     source_name: str = Field(default="Manual Verified Dataset", max_length=120)
     source_listing_id: str | None = Field(default=None, max_length=255)
