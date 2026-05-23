@@ -115,7 +115,11 @@ def search_listings_for_school(
 def get_listing(listing_id: UUID, db: Session = Depends(get_db)) -> Listing:
     listing = db.scalar(
         select(Listing)
-        .options(selectinload(Listing.source), selectinload(Listing.scam_signals))
+        .options(
+            selectinload(Listing.source),
+            selectinload(Listing.scam_signals),
+            selectinload(Listing.scores),
+        )
         .where(Listing.id == listing_id)
     )
     if listing is None:

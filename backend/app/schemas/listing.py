@@ -46,8 +46,22 @@ class ScamSignalRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class ListingScoreRead(BaseModel):
+    school_id: UUID
+    distance_miles: Decimal | None
+    affordability_score: int
+    distance_score: int
+    freshness_score: int
+    scam_risk_score: int
+    campus_rent_score: int
+    score_details: dict | None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class ListingDetailRead(ListingRead):
     scam_signals: list[ScamSignalRead]
+    scores: list[ListingScoreRead]
 
 
 class ListingSearchResult(BaseModel):
