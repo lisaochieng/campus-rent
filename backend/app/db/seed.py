@@ -6,6 +6,7 @@ from app.db.models import Listing, ListingSource, ListingStatus, School, SourceT
 from app.db.session import SessionLocal
 from app.services.scam_detection import refresh_persisted_scam_signals
 from app.services.score_persistence import refresh_baseline_listing_scores
+from app.services.search_index import rebuild_listings_index
 
 SEED_SCHOOLS = [
     {
@@ -220,8 +221,12 @@ def main() -> None:
     with SessionLocal() as session:
         score_count = refresh_baseline_listing_scores(session)
         session.commit()
+        indexed_count = rebuild_listings_index(session)
 
-    print(f"Seeded schools, listing sources, mock listings, and {score_count} baseline scores.")
+    print(
+        "Seeded schools, listing sources, mock listings, "
+        f"{score_count} baseline scores, and {indexed_count} search documents."
+    )
 
 
 if __name__ == "__main__":

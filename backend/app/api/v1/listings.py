@@ -16,6 +16,7 @@ from app.schemas.listing import (
 )
 from app.services.scam_detection import detect_scam_signals, refresh_persisted_scam_signals
 from app.services.scoring import campus_rent_score
+from app.services.search_index import index_listing, get_search_client, search_listing_ids
 
 router = APIRouter(prefix="/listings", tags=["listings"])
 
@@ -48,6 +49,37 @@ def list_listings(
         statement = statement.where(Listing.bedrooms >= min_bedrooms)
 
     return list(db.scalars(statement).all())
+
+
+@router.get("/fast-search", response_model=list[ListingRead])
+def fast_search_listings(
+    q: str = Query(min_length=2),
+    city: str | None = None,
+    state: str | None = None,
+    max_rent: int | None = Query(default=None, gt=0),
+    min_scam_safety: int | None = Query(default=None, ge=0, le=100),
+    limit: int = Query(default=25, ge=1, le=100),
+    db: Session = Depends(get_db),
+) -> list[Listing]:
+    listing_ids = search_listing_ids(
+        query=q,
+        city=city,
+        state=state,
+        max_rent=max_rent,
+        min_scam_safety=min_scam_safety,
+        limit=limit,
+    )
+    if not listing_ids:
+        return []
+
+    listings = db.scalars(
+        select(Listing)
+        .options(selectinload(Listing.source), selectinload(Listing.scam_signals))
+        .where(Listing.id.in_(listing_ids))
+    ).all()
+    listing_by_id = {listing.id: listing for listing in listings}
+
+    return [listing_by_id[listing_id] for listing_id in listing_ids if listing_id in listing_by_id]
 
 
 @router.get("/search", response_model=list[ListingSearchResult])
@@ -172,5 +204,7 @@ def create_listing(payload: ListingCreate, db: Session = Depends(get_db)) -> Lis
     refresh_persisted_scam_signals(db, listing)
     db.commit()
     db.refresh(listing)
+    db.refresh(listing, attribute_names=["source", "scam_signals"])
+    index_listing(get_search_client(), listing)
 
     return listing
