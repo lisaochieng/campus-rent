@@ -1,7 +1,7 @@
 from decimal import Decimal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -13,6 +13,11 @@ from app.schemas.listing import (
     ListingRead,
     ListingSearchResult,
     ScamSignalRead,
+)
+from app.services.cache import (
+    build_fast_search_cache_key,
+    get_cached_listing_ids,
+    set_cached_listing_ids,
 )
 from app.services.scam_detection import detect_scam_signals, refresh_persisted_scam_signals
 from app.services.scoring import campus_rent_score
@@ -53,6 +58,7 @@ def list_listings(
 
 @router.get("/fast-search", response_model=list[ListingRead])
 def fast_search_listings(
+    response: Response,
     q: str = Query(min_length=2),
     city: str | None = None,
     state: str | None = None,
@@ -61,7 +67,7 @@ def fast_search_listings(
     limit: int = Query(default=25, ge=1, le=100),
     db: Session = Depends(get_db),
 ) -> list[Listing]:
-    listing_ids = search_listing_ids(
+    cache_key = build_fast_search_cache_key(
         query=q,
         city=city,
         state=state,
@@ -69,6 +75,21 @@ def fast_search_listings(
         min_scam_safety=min_scam_safety,
         limit=limit,
     )
+    listing_ids = get_cached_listing_ids(cache_key)
+    if listing_ids is None:
+        response.headers["X-Cache"] = "MISS"
+        listing_ids = search_listing_ids(
+            query=q,
+            city=city,
+            state=state,
+            max_rent=max_rent,
+            min_scam_safety=min_scam_safety,
+            limit=limit,
+        )
+        set_cached_listing_ids(cache_key, listing_ids)
+    else:
+        response.headers["X-Cache"] = "HIT"
+
     if not listing_ids:
         return []
 

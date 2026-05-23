@@ -4,6 +4,7 @@ from sqlalchemy import select
 
 from app.db.models import Listing, ListingSource, ListingStatus, School, SourceTrustLevel
 from app.db.session import SessionLocal
+from app.services.cache import clear_fast_search_cache
 from app.services.scam_detection import refresh_persisted_scam_signals
 from app.services.score_persistence import refresh_baseline_listing_scores
 from app.services.search_index import rebuild_listings_index
@@ -222,10 +223,12 @@ def main() -> None:
         score_count = refresh_baseline_listing_scores(session)
         session.commit()
         indexed_count = rebuild_listings_index(session)
+        cleared_cache_count = clear_fast_search_cache()
 
     print(
         "Seeded schools, listing sources, mock listings, "
-        f"{score_count} baseline scores, and {indexed_count} search documents."
+        f"{score_count} baseline scores, {indexed_count} search documents, "
+        f"and cleared {cleared_cache_count} fast-search cache keys."
     )
 
 

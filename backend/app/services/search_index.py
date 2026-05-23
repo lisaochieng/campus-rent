@@ -12,7 +12,12 @@ LISTINGS_INDEX = "campusrent-listings"
 
 
 def get_search_client() -> OpenSearch:
-    return OpenSearch(settings.opensearch_url, timeout=5)
+    return OpenSearch(
+        settings.opensearch_url,
+        timeout=30,
+        max_retries=3,
+        retry_on_timeout=True,
+    )
 
 
 def ensure_listings_index(client: OpenSearch | None = None) -> None:
