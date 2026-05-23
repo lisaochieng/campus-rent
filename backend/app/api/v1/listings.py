@@ -8,6 +8,9 @@ from sqlalchemy.orm import Session, selectinload
 from app.db.models import Listing, ListingSource, ListingStatus, School
 from app.db.session import get_db
 from app.schemas.listing import (
+    ListingCompareRequest,
+    ListingCompareResponse,
+    ListingComparison,
     ListingCreate,
     ListingDetailRead,
     ListingFilterOptions,
@@ -53,6 +56,51 @@ def listing_search_result(
             for signal in scam_signals
         ],
         campus_rent_score=score["campus_rent_score"],
+    )
+
+
+def listing_comparison(
+    *,
+    listing: Listing,
+    school: School,
+    max_rent: int | None,
+) -> ListingComparison:
+    result = listing_search_result(listing=listing, school=school, max_rent=max_rent)
+    strengths = []
+    tradeoffs = []
+
+    if result.distance_miles <= 1:
+        strengths.append("Very close to campus")
+    elif result.distance_miles > 5:
+        tradeoffs.append("Farther from campus")
+
+    if max_rent is not None:
+        if listing.monthly_rent <= max_rent:
+            strengths.append("Within budget")
+        else:
+            tradeoffs.append("Above budget")
+
+    if result.scam_safety_score >= 90:
+        strengths.append("Low scam risk")
+    elif result.scam_safety_score < 70:
+        tradeoffs.append("Needs extra verification")
+
+    if not strengths:
+        strengths.append("Balanced option")
+    if not tradeoffs:
+        tradeoffs.append("No major tradeoffs detected")
+
+    return ListingComparison(
+        listing=listing,
+        distance_miles=result.distance_miles,
+        monthly_rent=listing.monthly_rent,
+        rent_delta_from_budget=(
+            listing.monthly_rent - max_rent if max_rent is not None else None
+        ),
+        scam_safety_score=result.scam_safety_score,
+        campus_rent_score=result.campus_rent_score,
+        strengths=strengths,
+        tradeoffs=tradeoffs,
     )
 
 
@@ -186,6 +234,48 @@ def get_listing_filter_options(
         city_options=city_options,
         suggested_max_distance_miles=[0.5, 1, 2, 5, 10],
     )
+
+
+@router.post("/compare", response_model=ListingCompareResponse)
+def compare_listings(
+    payload: ListingCompareRequest,
+    db: Session = Depends(get_db),
+) -> ListingCompareResponse:
+    school = find_school_by_name(db, payload.school_name)
+    if school is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="School not found.",
+        )
+
+    listings = db.scalars(
+        select(Listing)
+        .options(selectinload(Listing.source), selectinload(Listing.scam_signals))
+        .where(Listing.id.in_(payload.listing_ids), Listing.status == ListingStatus.ACTIVE)
+    ).all()
+    listing_by_id = {listing.id: listing for listing in listings}
+    missing_listing_ids = [
+        str(listing_id)
+        for listing_id in payload.listing_ids
+        if listing_id not in listing_by_id
+    ]
+    if missing_listing_ids:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"missing_listing_ids": missing_listing_ids},
+        )
+
+    comparisons = [
+        listing_comparison(
+            listing=listing_by_id[listing_id],
+            school=school,
+            max_rent=payload.max_rent,
+        )
+        for listing_id in payload.listing_ids
+    ]
+    comparisons.sort(key=lambda comparison: comparison.campus_rent_score, reverse=True)
+
+    return ListingCompareResponse(school_name=school.name, comparisons=comparisons)
 
 
 @router.get("/recommendations", response_model=list[ListingSearchResult])

@@ -88,6 +88,28 @@ class ListingFilterOptions(BaseModel):
     suggested_max_distance_miles: list[float]
 
 
+class ListingCompareRequest(BaseModel):
+    school_name: str = Field(min_length=2, max_length=255)
+    listing_ids: list[UUID] = Field(min_length=2, max_length=5)
+    max_rent: int | None = Field(default=None, gt=0)
+
+
+class ListingComparison(BaseModel):
+    listing: ListingRead
+    distance_miles: float
+    monthly_rent: int
+    rent_delta_from_budget: int | None
+    scam_safety_score: int
+    campus_rent_score: int
+    strengths: list[str]
+    tradeoffs: list[str]
+
+
+class ListingCompareResponse(BaseModel):
+    school_name: str
+    comparisons: list[ListingComparison]
+
+
 class ListingCreate(BaseModel):
     source_name: str = Field(default="Manual Verified Dataset", max_length=120)
     source_listing_id: str | None = Field(default=None, max_length=255)
