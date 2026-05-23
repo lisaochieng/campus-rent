@@ -26,6 +26,57 @@ from app.services.search_index import index_listing, get_search_client, search_l
 router = APIRouter(prefix="/listings", tags=["listings"])
 
 
+def school_acronym(name: str) -> str:
+    ignored_words = {"of", "the", "and", "at"}
+    return "".join(
+        word[0].upper()
+        for word in name.replace(",", " ").split()
+        if word.lower() not in ignored_words
+    )
+
+
+def find_school_by_name(db: Session, school_name: str) -> School | None:
+    school = db.scalar(select(School).where(School.name.ilike(f"%{school_name}%")))
+    if school is not None:
+        return school
+
+    normalized_query = school_name.strip().upper().replace(".", "")
+    schools = db.scalars(select(School)).all()
+    for candidate in schools:
+        if school_acronym(candidate.name) == normalized_query:
+            return candidate
+
+    return None
+
+
+def listing_search_result(
+    *,
+    listing: Listing,
+    school: School,
+    max_rent: int | None,
+) -> ListingSearchResult:
+    score = campus_rent_score(listing=listing, school=school, max_budget=max_rent)
+    scam_signals = listing.scam_signals or detect_scam_signals(listing)
+
+    return ListingSearchResult(
+        listing=listing,
+        distance_miles=score["distance_miles"],
+        distance_score=score["distance_score"],
+        affordability_score=score["affordability_score"],
+        freshness_score=score["freshness_score"],
+        scam_safety_score=score["scam_safety_score"],
+        scam_signals=[
+            ScamSignalRead(
+                signal_type=signal.signal_type,
+                severity=signal.severity,
+                explanation=signal.explanation,
+            )
+            for signal in scam_signals
+        ],
+        campus_rent_score=score["campus_rent_score"],
+    )
+
+
 @router.get("", response_model=list[ListingRead])
 def list_listings(
     city: str | None = None,
@@ -103,6 +154,74 @@ def fast_search_listings(
     return [listing_by_id[listing_id] for listing_id in listing_ids if listing_id in listing_by_id]
 
 
+@router.get("/recommendations", response_model=list[ListingSearchResult])
+def recommend_listings_for_student(
+    school_name: str = Query(min_length=2),
+    q: str | None = Query(default=None, min_length=2),
+    max_rent: int | None = Query(default=None, gt=0),
+    min_bedrooms: Decimal | None = Query(default=None, ge=0),
+    max_distance_miles: float | None = Query(default=None, gt=0),
+    min_scam_safety: int | None = Query(default=70, ge=0, le=100),
+    limit: int = Query(default=25, ge=1, le=100),
+    db: Session = Depends(get_db),
+) -> list[ListingSearchResult]:
+    school = find_school_by_name(db, school_name)
+    if school is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="School not found.",
+        )
+
+    if q:
+        listing_ids = search_listing_ids(
+            query=q,
+            city=school.city,
+            state=school.state,
+            max_rent=max_rent,
+            min_scam_safety=min_scam_safety,
+            limit=100,
+        )
+        if not listing_ids:
+            return []
+
+        statement = (
+            select(Listing)
+            .options(selectinload(Listing.source), selectinload(Listing.scam_signals))
+            .where(Listing.id.in_(listing_ids), Listing.status == ListingStatus.ACTIVE)
+        )
+    else:
+        statement = (
+            select(Listing)
+            .options(selectinload(Listing.source), selectinload(Listing.scam_signals))
+            .where(
+                Listing.status == ListingStatus.ACTIVE,
+                Listing.city.ilike(school.city),
+                Listing.state.ilike(school.state),
+            )
+            .limit(250)
+        )
+
+    if max_rent:
+        statement = statement.where(Listing.monthly_rent <= max_rent)
+    if min_bedrooms is not None:
+        statement = statement.where(Listing.bedrooms >= min_bedrooms)
+
+    results = []
+    for listing in db.scalars(statement).all():
+        result = listing_search_result(listing=listing, school=school, max_rent=max_rent)
+        if result.scam_safety_score < min_scam_safety:
+            continue
+        if (
+            max_distance_miles is not None
+            and result.distance_miles > max_distance_miles
+        ):
+            continue
+        results.append(result)
+
+    results.sort(key=lambda result: result.campus_rent_score, reverse=True)
+    return results[:limit]
+
+
 @router.get("/search", response_model=list[ListingSearchResult])
 def search_listings_for_school(
     school_id: UUID,
@@ -132,33 +251,14 @@ def search_listings_for_school(
     listings = db.scalars(statement).all()
     results = []
     for listing in listings:
-        score = campus_rent_score(listing=listing, school=school, max_budget=max_rent)
-        scam_signals = listing.scam_signals or detect_scam_signals(listing)
+        result = listing_search_result(listing=listing, school=school, max_rent=max_rent)
         if (
             max_distance_miles is not None
-            and score["distance_miles"] > max_distance_miles
+            and result.distance_miles > max_distance_miles
         ):
             continue
 
-        results.append(
-            ListingSearchResult(
-                listing=listing,
-                distance_miles=score["distance_miles"],
-                distance_score=score["distance_score"],
-                affordability_score=score["affordability_score"],
-                freshness_score=score["freshness_score"],
-                scam_safety_score=score["scam_safety_score"],
-                scam_signals=[
-                    ScamSignalRead(
-                        signal_type=signal.signal_type,
-                        severity=signal.severity,
-                        explanation=signal.explanation,
-                    )
-                    for signal in scam_signals
-                ],
-                campus_rent_score=score["campus_rent_score"],
-            )
-        )
+        results.append(result)
 
     results.sort(key=lambda result: result.campus_rent_score, reverse=True)
     return results[:limit]
