@@ -1,11 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.dependencies import require_ingestion_api_key
 from app.db.session import get_db
 from app.schemas.listing import ListingIngestRequest, ListingIngestResponse
 from app.services.listing_ingestion import ingest_listing_batch
 
-router = APIRouter(prefix="/ingestion", tags=["ingestion"])
+router = APIRouter(
+    prefix="/ingestion",
+    tags=["ingestion"],
+    dependencies=[Depends(require_ingestion_api_key)],
+)
 
 
 @router.post(

@@ -17,6 +17,7 @@ class Settings(BaseSettings):
 
     redis_url: str = "redis://localhost:6379/0"
     opensearch_url: str = "http://localhost:9200"
+    ingestion_api_key: str = "campusrent-local-dev-key"
 
     model_config = SettingsConfigDict(
         env_file=".env",

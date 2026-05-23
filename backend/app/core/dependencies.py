@@ -1,8 +1,24 @@
+from secrets import compare_digest
+
+from fastapi import Header, HTTPException, status
 from opensearchpy import OpenSearch
 import psycopg
 from redis import Redis
 
 from app.core.config import settings
+
+
+def require_ingestion_api_key(
+    x_ingestion_api_key: str | None = Header(default=None),
+) -> None:
+    if x_ingestion_api_key is None or not compare_digest(
+        x_ingestion_api_key,
+        settings.ingestion_api_key,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Valid ingestion API key required.",
+        )
 
 
 def check_postgres() -> bool:
