@@ -91,3 +91,37 @@ class ListingCreate(BaseModel):
     bedrooms: Decimal | None = Field(default=None, ge=0)
     bathrooms: Decimal | None = Field(default=None, ge=0)
     square_feet: int | None = Field(default=None, gt=0)
+
+
+class ListingIngestItem(BaseModel):
+    source_listing_id: str | None = Field(default=None, max_length=255)
+    source_url: str = Field(max_length=1000)
+    title: str = Field(max_length=300)
+    description: str | None = None
+    address: str | None = Field(default=None, max_length=500)
+    city: str = Field(max_length=120)
+    state: str = Field(max_length=80)
+    postal_code: str | None = Field(default=None, max_length=20)
+    latitude: Decimal | None = None
+    longitude: Decimal | None = None
+    monthly_rent: int = Field(gt=0)
+    bedrooms: Decimal | None = Field(default=None, ge=0)
+    bathrooms: Decimal | None = Field(default=None, ge=0)
+    square_feet: int | None = Field(default=None, gt=0)
+
+
+class ListingIngestRequest(BaseModel):
+    source_name: str = Field(max_length=120)
+    listings: list[ListingIngestItem] = Field(min_length=1, max_length=100)
+
+
+class ListingIngestResponse(BaseModel):
+    source_name: str
+    received: int
+    created: int
+    updated: int
+    skipped: int
+    indexed: int
+    cache_keys_cleared: int
+    listing_ids: list[UUID]
+    skipped_reasons: list[str]
