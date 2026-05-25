@@ -149,6 +149,10 @@ class Listing(Base):
         back_populates="listing",
         cascade="all, delete-orphan",
     )
+    reports: Mapped[list["ListingReport"]] = relationship(
+        back_populates="listing",
+        cascade="all, delete-orphan",
+    )
 
 
 class ScamSignal(Base):
@@ -229,3 +233,26 @@ class SavedListing(Base):
     )
 
     listing: Mapped[Listing] = relationship(back_populates="saves")
+
+
+class ListingReport(Base):
+    __tablename__ = "listing_reports"
+
+    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
+    listing_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("listings.id"),
+        nullable=False,
+        index=True,
+    )
+    reporter_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    reason: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    description: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, default="open", index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    listing: Mapped[Listing] = relationship(back_populates="reports")
