@@ -2,7 +2,18 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PostgresUUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -134,6 +145,10 @@ class Listing(Base):
         back_populates="listing",
         cascade="all, delete-orphan",
     )
+    saves: Mapped[list["SavedListing"]] = relationship(
+        back_populates="listing",
+        cascade="all, delete-orphan",
+    )
 
 
 class ScamSignal(Base):
@@ -190,3 +205,27 @@ class ListingScore(Base):
 
     listing: Mapped[Listing] = relationship(back_populates="scores")
     school: Mapped[School] = relationship()
+
+
+class SavedListing(Base):
+    __tablename__ = "saved_listings"
+    __table_args__ = (
+        UniqueConstraint("student_email", "listing_id", name="uq_saved_listings_student_listing"),
+    )
+
+    id: Mapped[UUID] = mapped_column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid4)
+    student_email: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    listing_id: Mapped[UUID] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        ForeignKey("listings.id"),
+        nullable=False,
+        index=True,
+    )
+    note: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    listing: Mapped[Listing] = relationship(back_populates="saves")
