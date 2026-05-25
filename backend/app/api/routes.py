@@ -8,6 +8,7 @@ from app.api.v1.market import router as market_router
 from app.api.v1.metrics import router as metrics_router
 from app.api.v1.saved_listings import router as saved_listings_router
 from app.api.v1.schools import router as schools_router
+from app.api.v1.scraper_runs import router as scraper_runs_router
 
 router = APIRouter()
 router.include_router(health_router, tags=["health"])
@@ -18,3 +19,4 @@ router.include_router(listings_router, prefix="/api/v1")
 router.include_router(market_router, prefix="/api/v1")
 router.include_router(saved_listings_router, prefix="/api/v1")
 router.include_router(schools_router, prefix="/api/v1")
+router.include_router(scraper_runs_router, prefix="/api/v1")

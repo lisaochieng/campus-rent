@@ -39,6 +39,13 @@ def clean_text(value: str | None) -> str | None:
 
 
 def clean_state(value: str) -> str:
+    cleaned = clean_text(value)
+    if len(cleaned) <= 3:
+        return cleaned.upper()
+    return cleaned.title()
+
+
+def clean_country(value: str) -> str:
     return clean_text(value).upper()
 
 
@@ -56,10 +63,12 @@ def clean_ingested_listing(item: ListingIngestItem) -> dict:
         "address": clean_text(item.address),
         "city": clean_city(item.city),
         "state": clean_state(item.state),
+        "country": clean_country(item.country),
         "postal_code": clean_text(item.postal_code),
         "latitude": item.latitude,
         "longitude": item.longitude,
         "monthly_rent": item.monthly_rent,
+        "currency_code": item.currency_code.upper(),
         "bedrooms": item.bedrooms,
         "bathrooms": item.bathrooms,
         "square_feet": item.square_feet,

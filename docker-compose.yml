@@ -1,4 +1,19 @@
 services:
+  frontend:
+    build:
+      context: ./frontend
+    container_name: campusrent-frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+    command: npm run dev -- --host 0.0.0.0
+    depends_on:
+      - api
+
   api:
     build:
       context: ./backend

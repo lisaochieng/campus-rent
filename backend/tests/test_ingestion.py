@@ -57,3 +57,22 @@ def test_clean_ingested_listing_normalizes_text_fields() -> None:
     assert cleaned["city"] == "New York"
     assert cleaned["state"] == "NY"
     assert cleaned["postal_code"] == "10003"
+
+
+def test_clean_ingested_listing_preserves_long_global_regions() -> None:
+    item = ListingIngestItem(
+        source_url="https://campusrent.local/manual/london-001",
+        title="Studio near campus",
+        city="london",
+        state="england",
+        country="gb",
+        monthly_rent=1800,
+        currency_code="gbp",
+    )
+
+    cleaned = clean_ingested_listing(item)
+
+    assert cleaned["city"] == "London"
+    assert cleaned["state"] == "England"
+    assert cleaned["country"] == "GB"
+    assert cleaned["currency_code"] == "GBP"

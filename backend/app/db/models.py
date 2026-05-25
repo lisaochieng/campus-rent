@@ -98,11 +98,13 @@ class Listing(Base):
     address: Mapped[str | None] = mapped_column(String(500))
     city: Mapped[str] = mapped_column(String(120), nullable=False)
     state: Mapped[str] = mapped_column(String(80), nullable=False)
+    country: Mapped[str] = mapped_column(String(80), nullable=False, default="US")
     postal_code: Mapped[str | None] = mapped_column(String(20))
     latitude: Mapped[float | None] = mapped_column(Numeric(9, 6))
     longitude: Mapped[float | None] = mapped_column(Numeric(9, 6))
 
     monthly_rent: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    currency_code: Mapped[str] = mapped_column(String(3), nullable=False, default="USD")
     bedrooms: Mapped[float | None] = mapped_column(Numeric(3, 1))
     bathrooms: Mapped[float | None] = mapped_column(Numeric(3, 1))
     square_feet: Mapped[int | None] = mapped_column(Integer)

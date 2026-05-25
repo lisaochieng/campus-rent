@@ -68,6 +68,7 @@ def get_market_summary(
 
     rents = [result.listing.monthly_rent for result in safe_results]
     distances = [result.distance_miles for result in safe_results]
+    currency_codes = [result.listing.currency_code for result in safe_results]
     rents_by_bedroom: dict[Decimal | None, list[int]] = defaultdict(list)
     for result in safe_results:
         rents_by_bedroom[result.listing.bedrooms].append(result.listing.monthly_rent)
@@ -94,6 +95,7 @@ def get_market_summary(
         listing_count=len(scored_results),
         safe_listing_count=len(safe_results),
         average_rent=average_rent,
+        currency_code=currency_codes[0] if currency_codes else None,
         min_rent=min(rents) if rents else None,
         max_rent=max(rents) if rents else None,
         average_distance_miles=average_float(distances),

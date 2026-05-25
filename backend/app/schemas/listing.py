@@ -23,10 +23,12 @@ class ListingRead(BaseModel):
     address: str | None
     city: str
     state: str
+    country: str
     postal_code: str | None
     latitude: Decimal | None
     longitude: Decimal | None
     monthly_rent: int
+    currency_code: str
     bedrooms: Decimal | None
     bathrooms: Decimal | None
     square_feet: int | None
@@ -119,10 +121,12 @@ class ListingCreate(BaseModel):
     address: str | None = Field(default=None, max_length=500)
     city: str = Field(max_length=120)
     state: str = Field(max_length=80)
+    country: str = Field(default="US", max_length=80)
     postal_code: str | None = Field(default=None, max_length=20)
     latitude: Decimal | None = None
     longitude: Decimal | None = None
     monthly_rent: int = Field(gt=0)
+    currency_code: str = Field(default="USD", min_length=3, max_length=3)
     bedrooms: Decimal | None = Field(default=None, ge=0)
     bathrooms: Decimal | None = Field(default=None, ge=0)
     square_feet: int | None = Field(default=None, gt=0)
@@ -136,10 +140,12 @@ class ListingIngestItem(BaseModel):
     address: str | None = Field(default=None, max_length=500)
     city: str = Field(max_length=120)
     state: str = Field(max_length=80)
+    country: str = Field(default="US", max_length=80)
     postal_code: str | None = Field(default=None, max_length=20)
     latitude: Decimal | None = None
     longitude: Decimal | None = None
     monthly_rent: int = Field(gt=0)
+    currency_code: str = Field(default="USD", min_length=3, max_length=3)
     bedrooms: Decimal | None = Field(default=None, ge=0)
     bathrooms: Decimal | None = Field(default=None, ge=0)
     square_feet: int | None = Field(default=None, gt=0)

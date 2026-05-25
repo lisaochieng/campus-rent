@@ -18,6 +18,7 @@ class MarketSummary(BaseModel):
     listing_count: int
     safe_listing_count: int
     average_rent: int | None
+    currency_code: str | None
     min_rent: int | None
     max_rent: int | None
     average_distance_miles: float | None

@@ -34,6 +34,38 @@ SEED_SCHOOLS = [
         "latitude": Decimal("37.871899"),
         "longitude": Decimal("-122.258540"),
     },
+    {
+        "name": "University College London",
+        "city": "London",
+        "state": "England",
+        "country": "GB",
+        "latitude": Decimal("51.524600"),
+        "longitude": Decimal("-0.134000"),
+    },
+    {
+        "name": "University of Toronto",
+        "city": "Toronto",
+        "state": "ON",
+        "country": "CA",
+        "latitude": Decimal("43.662900"),
+        "longitude": Decimal("-79.395700"),
+    },
+    {
+        "name": "University of Tokyo",
+        "city": "Tokyo",
+        "state": "Tokyo",
+        "country": "JP",
+        "latitude": Decimal("35.713200"),
+        "longitude": Decimal("139.762100"),
+    },
+    {
+        "name": "University of Lagos",
+        "city": "Lagos",
+        "state": "Lagos",
+        "country": "NG",
+        "latitude": Decimal("6.515800"),
+        "longitude": Decimal("3.389900"),
+    },
 ]
 
 SEED_SOURCES = [
