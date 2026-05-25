@@ -11,6 +11,7 @@ from app.schemas.listing_report import (
     ListingReportRead,
     ListingReportUpdate,
 )
+from app.services.listing_moderation import flag_listing_if_report_threshold_reached
 
 router = APIRouter(prefix="/listing-reports", tags=["listing reports"])
 
@@ -60,6 +61,8 @@ def report_listing(
         status="open",
     )
     db.add(report)
+    db.flush()
+    flag_listing_if_report_threshold_reached(db=db, listing=listing)
     db.commit()
 
     report = db.scalar(

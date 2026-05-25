@@ -97,6 +97,16 @@ def index_listing(client: OpenSearch, listing: Listing) -> None:
     )
 
 
+def remove_listing_from_index(client: OpenSearch, listing_id: UUID) -> None:
+    ensure_listings_index(client)
+    client.delete(
+        index=LISTINGS_INDEX,
+        id=str(listing_id),
+        ignore=[404],
+        refresh=True,
+    )
+
+
 def rebuild_listings_index(db: Session) -> int:
     client = get_search_client()
     if client.indices.exists(index=LISTINGS_INDEX):
