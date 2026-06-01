@@ -47,9 +47,14 @@ main {
   padding: 18px clamp(18px, 4vw, 64px) 44px;
   color: #f6f2ea;
   background:
+    linear-gradient(90deg, rgba(11, 11, 11, 0.96) 0%, rgba(11, 11, 11, 0.72) 50%, rgba(11, 11, 11, 0.34) 100%),
+    linear-gradient(180deg, rgba(11, 11, 11, 0.22), rgba(11, 11, 11, 0.92)),
+    url("https://source.unsplash.com/1iGG6k4Ci4E/1800x1200"),
     radial-gradient(circle at 74% 18%, rgba(255, 255, 255, 0.14), transparent 24%),
     radial-gradient(circle at 18% 70%, rgba(255, 255, 255, 0.08), transparent 28%),
     linear-gradient(180deg, #171717 0%, #0b0b0b 100%);
+  background-position: center;
+  background-size: cover;
 }
 
 .hero::before {
@@ -64,7 +69,7 @@ main {
   background:
     repeating-conic-gradient(from 14deg, rgba(255, 255, 255, 0.45) 0deg 2deg, rgba(255, 255, 255, 0.04) 2deg 8deg, transparent 8deg 13deg);
   filter: blur(1.6px) contrast(1.08);
-  opacity: 0.16;
+  opacity: 0.07;
   mask: radial-gradient(circle, transparent 0 32%, #000 33% 42%, transparent 43% 100%);
 }
 
@@ -703,6 +708,33 @@ select {
 
 .listing-card {
   animation: rise-in 480ms ease both;
+}
+
+.listing-image {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin-bottom: 16px;
+  border-radius: 18px;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.48);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04)),
+    rgba(0, 0, 0, 0.24);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.listing-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: saturate(0.95) contrast(1.02);
+}
+
+.listing-image.is-empty {
+  border: 1px dashed rgba(255, 255, 255, 0.18);
 }
 
 .skeleton-grid {

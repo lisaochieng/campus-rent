@@ -35,6 +35,7 @@ class ListingRead(BaseModel):
     contact_name: str | None = None
     contact_phone: str | None = None
     contact_email: str | None = None
+    image_url: str | None = None
     status: ListingStatus
     first_seen_at: datetime
     last_seen_at: datetime
@@ -136,6 +137,7 @@ class ListingCreate(BaseModel):
     contact_name: str | None = Field(default=None, max_length=255)
     contact_phone: str | None = Field(default=None, max_length=80)
     contact_email: str | None = Field(default=None, max_length=255)
+    image_url: str | None = Field(default=None, max_length=1000)
 
 
 class ListingIngestItem(BaseModel):
@@ -158,6 +160,7 @@ class ListingIngestItem(BaseModel):
     contact_name: str | None = Field(default=None, max_length=255)
     contact_phone: str | None = Field(default=None, max_length=80)
     contact_email: str | None = Field(default=None, max_length=255)
+    image_url: str | None = Field(default=None, max_length=1000)
 
 
 class ListingIngestRequest(BaseModel):

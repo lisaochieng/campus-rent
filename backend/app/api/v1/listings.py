@@ -30,6 +30,22 @@ from app.services.school_matching import find_school_by_name
 
 router = APIRouter(prefix="/listings", tags=["listings"])
 
+REAL_RECOMMENDATION_SOURCES = {
+    "RentCast Rental Listings",
+    "Craigslist Public Rental RSS",
+}
+
+
+def has_real_clickable_source(listing: Listing) -> bool:
+    source_url = listing.source_url.lower()
+    if listing.source.name not in REAL_RECOMMENDATION_SOURCES:
+        return False
+    if "campusrent.local" in source_url:
+        return False
+    if "api.rentcast.io/v1/listings" in source_url:
+        return False
+    return source_url.startswith(("http://", "https://"))
+
 
 @router.get("", response_model=list[ListingRead])
 def list_listings(
@@ -270,6 +286,8 @@ def recommend_listings_for_student(
 
     results = []
     for listing in db.scalars(statement).all():
+        if not has_real_clickable_source(listing):
+            continue
         result = listing_search_result(listing=listing, school=school, max_rent=max_rent)
         if result.scam_safety_score < min_scam_safety:
             continue

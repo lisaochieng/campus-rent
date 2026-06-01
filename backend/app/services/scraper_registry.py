@@ -336,6 +336,7 @@ class RentCastRentalScraper(ListingScraper):
             contact_name=self._contact_name(record),
             contact_phone=self._contact_phone(record),
             contact_email=self._contact_email(record),
+            image_url=self._image_url(record),
         )
 
     def _decimal_or_none(self, value) -> Decimal | None:
@@ -359,6 +360,24 @@ class RentCastRentalScraper(ListingScraper):
             or listing_agent.get("website")
             or f"{self.base_url}/{source_id}"
         )
+
+    def _image_url(self, record: dict) -> str | None:
+        for key in ("imageUrl", "image_url", "thumbnail", "primaryPhotoUrl"):
+            value = record.get(key)
+            if isinstance(value, str) and value.startswith(("http://", "https://")):
+                return value
+
+        photos = record.get("photos") or record.get("images") or record.get("propertyImages")
+        if isinstance(photos, list):
+            for photo in photos:
+                if isinstance(photo, str) and photo.startswith(("http://", "https://")):
+                    return photo
+                if isinstance(photo, dict):
+                    for key in ("url", "href", "imageUrl"):
+                        value = photo.get(key)
+                        if isinstance(value, str) and value.startswith(("http://", "https://")):
+                            return value
+        return None
 
     def _contact_name(self, record: dict) -> str | None:
         listing_agent = record.get("listingAgent") or {}

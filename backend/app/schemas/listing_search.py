@@ -10,6 +10,7 @@ class ListingSearchResultRead(BaseModel):
     monthly_rent: int
     currency_code: str
     price_label: str
+    image_url: str | None = None
     source_name: str
     provider: str
     rank: int

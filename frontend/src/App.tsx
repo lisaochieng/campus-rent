@@ -61,6 +61,7 @@ type Listing = {
   contact_name: string | null;
   contact_phone: string | null;
   contact_email: string | null;
+  image_url: string | null;
 };
 
 type Recommendation = {
@@ -113,6 +114,7 @@ type ListingSearchResult = {
   monthly_rent: number;
   currency_code: string;
   price_label: string;
+  image_url: string | null;
   source_name: string;
   provider: string;
   rank: number;
@@ -597,6 +599,7 @@ export default function App() {
         <div className="listing-grid">
           {recommendations.map((item, index) => (
             <article className="listing-card" key={item.listing.id} style={{ animationDelay: `${index * 60}ms` }}>
+              <ListingImage src={item.listing.image_url} title={item.listing.title} />
               <div className="card-topline">
                 <span>{item.listing.bedrooms ?? "?"} bd | {item.listing.bathrooms ?? "?"} ba</span>
                 <strong>{item.campus_rent_score}</strong>
@@ -751,6 +754,7 @@ function ListingSearchResultCard({
 }) {
   return (
     <article className="listing-card search-result-card" style={{ animationDelay: `${index * 50}ms` }}>
+      <ListingImage src={result.image_url} title={result.title} />
       <div className="card-topline">
         <span>{result.source_name}</span>
         <strong>{result.rank}</strong>
@@ -774,6 +778,14 @@ function ListingSearchResultCard({
         </a>
       </div>
     </article>
+  );
+}
+
+function ListingImage({ src, title }: { src: string | null; title: string }) {
+  return (
+    <div className={`listing-image ${src ? "" : "is-empty"}`}>
+      {src ? <img src={src} alt={`${title} preview`} loading="lazy" /> : <span>No source image</span>}
+    </div>
   );
 }
 

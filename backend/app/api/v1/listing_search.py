@@ -118,6 +118,22 @@ def extract_price(result: dict, country: str | None) -> tuple[int, str, str] | N
     return min(candidates, key=lambda candidate: candidate[0])
 
 
+def extract_image_url(result: dict) -> str | None:
+    direct = result.get("thumbnail")
+    if isinstance(direct, str) and direct.startswith(("http://", "https://")):
+        return direct
+
+    rich_snippet = result.get("rich_snippet")
+    if isinstance(rich_snippet, dict):
+        top = rich_snippet.get("top")
+        if isinstance(top, dict):
+            thumbnail = top.get("thumbnail")
+            if isinstance(thumbnail, str) and thumbnail.startswith(("http://", "https://")):
+                return thumbnail
+
+    return None
+
+
 def search_query(school_name: str, city: str | None, state: str | None) -> str:
     location = " ".join(part for part in [city, state] if part and part != "Unknown")
     place = f"{school_name} {location}".strip()
@@ -182,6 +198,7 @@ def get_listing_search_results(
                 monthly_rent=monthly_rent,
                 currency_code=currency_code,
                 price_label=price_label,
+                image_url=extract_image_url(result),
                 source_name=source_name(link),
                 provider="SerpAPI Google Search",
                 rank=len(results) + 1,

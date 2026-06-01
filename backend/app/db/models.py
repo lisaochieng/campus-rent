@@ -171,6 +171,11 @@ class Listing(Base):
         payload = self.raw_payload or {}
         return payload.get("contact_email")
 
+    @property
+    def image_url(self) -> str | None:
+        payload = self.raw_payload or {}
+        return payload.get("image_url")
+
 
 class ScamSignal(Base):
     __tablename__ = "scam_signals"
