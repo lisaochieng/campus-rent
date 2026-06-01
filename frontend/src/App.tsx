@@ -104,6 +104,48 @@ type HousingLead = {
   source_name: string;
 };
 
+type ListingSearchResult = {
+  id: string;
+  title: string;
+  source_url: string;
+  display_url: string | null;
+  snippet: string | null;
+  monthly_rent: number;
+  currency_code: string;
+  price_label: string;
+  source_name: string;
+  provider: string;
+  rank: number;
+};
+
+const CURRENCY_OPTIONS = ["USD", "CAD", "GBP", "EUR", "AUD", "NZD"] as const;
+const USD_RATES: Record<string, number> = {
+  USD: 1,
+  CAD: 1.37,
+  GBP: 0.79,
+  EUR: 0.92,
+  AUD: 1.52,
+  NZD: 1.65,
+};
+const COUNTRY_DEFAULT_CURRENCY: Record<string, string> = {
+  "United States": "USD",
+  Canada: "CAD",
+  "United Kingdom": "GBP",
+  Ireland: "EUR",
+  France: "EUR",
+  Germany: "EUR",
+  Spain: "EUR",
+  Italy: "EUR",
+  Australia: "AUD",
+  "New Zealand": "NZD",
+};
+
+function convertCurrency(value: number, fromCurrency: string, toCurrency: string) {
+  const fromRate = USD_RATES[fromCurrency] ?? 1;
+  const toRate = USD_RATES[toCurrency] ?? 1;
+  return (value / fromRate) * toRate;
+}
+
 function currency(value: number | null | undefined, currencyCode = "USD") {
   if (value == null) return "Not enough data";
   return new Intl.NumberFormat("en-US", {
@@ -111,6 +153,11 @@ function currency(value: number | null | undefined, currencyCode = "USD") {
     currency: currencyCode,
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function convertedCurrency(value: number | null | undefined, fromCurrency: string, toCurrency: string) {
+  if (value == null) return "Not enough data";
+  return currency(convertCurrency(value, fromCurrency, toCurrency), toCurrency);
 }
 
 async function api<T>(path: string, options?: RequestInit): Promise<T> {
@@ -126,6 +173,7 @@ export default function App() {
   const [selectedSchool, setSelectedSchool] = useState("NYU");
   const [keyword, setKeyword] = useState("");
   const [budget, setBudget] = useState("");
+  const [displayCurrency, setDisplayCurrency] = useState("USD");
   const [maxDistance, setMaxDistance] = useState(2);
   const [studentEmail, setStudentEmail] = useState("student@example.edu");
   const [schools, setSchools] = useState<SchoolOption[]>([]);
@@ -136,6 +184,7 @@ export default function App() {
   const [comparisons, setComparisons] = useState<Comparison[]>([]);
   const [dataSources, setDataSources] = useState<DataSource[]>([]);
   const [housingLeads, setHousingLeads] = useState<HousingLead[]>([]);
+  const [listingSearchResults, setListingSearchResults] = useState<ListingSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [schoolsLoading, setSchoolsLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
@@ -176,6 +225,13 @@ export default function App() {
     return (nextSchool ?? selectedSchoolMeta?.name ?? selectedSchool ?? schoolQuery).trim();
   }
 
+  function syncCurrencyForSchool(school: SchoolOption | null) {
+    const nextCurrency = school?.country ? COUNTRY_DEFAULT_CURRENCY[school.country] : null;
+    if (nextCurrency) {
+      setDisplayCurrency(nextCurrency);
+    }
+  }
+
   async function runSearch(nextSchool?: string) {
     const searchSchool = activeSchoolName(nextSchool);
     if (searchSchool.length < 2) {
@@ -189,6 +245,7 @@ export default function App() {
     setNotice("Finding apartments that fit your campus life...");
     setComparisons([]);
     setHousingLeads([]);
+    setListingSearchResults([]);
     window.setTimeout(() => {
       resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 60);
@@ -206,17 +263,21 @@ export default function App() {
       if (budget.trim().length > 0) {
         params.set("max_rent", budget.trim());
       }
-      const [marketSettled, recSettled, leadsSettled] = await Promise.allSettled([
+      const [marketSettled, recSettled, leadsSettled, searchSettled] = await Promise.allSettled([
         api<MarketSummary>(`/api/v1/market/summary?school_name=${encodeURIComponent(searchSchool)}`),
         api<Recommendation[]>(`/api/v1/listings/recommendations?${params}`),
         api<HousingLead[]>(
           `/api/v1/housing-leads/nearby?school_name=${encodeURIComponent(searchSchool)}&radius_meters=3500&limit=20`,
+        ),
+        api<ListingSearchResult[]>(
+          `/api/v1/listing-search/nearby?school_name=${encodeURIComponent(searchSchool)}&limit=8`,
         ),
       ]);
 
       const marketResult = marketSettled.status === "fulfilled" ? marketSettled.value : null;
       const recResult = recSettled.status === "fulfilled" ? recSettled.value : [];
       const leadsResult = leadsSettled.status === "fulfilled" ? leadsSettled.value : [];
+      const searchResult = searchSettled.status === "fulfilled" ? searchSettled.value : [];
 
       setMarket(
         marketResult ?? {
@@ -237,12 +298,15 @@ export default function App() {
       );
       setRecommendations(recResult);
       setHousingLeads(leadsResult);
+      setListingSearchResults(searchResult);
       setSelectedIds(recResult.slice(0, 2).map((item) => item.listing.id));
       setNotice(
         recResult.length > 0
           ? `${recResult.length} strong options found near ${marketResult?.school_name ?? searchSchool}.`
+          : searchResult.length > 0
+            ? `${searchResult.length} real external listing links found near ${marketResult?.school_name ?? searchSchool}.`
           : leadsResult.length > 0
-            ? `No priced listings loaded yet, but ${leadsResult.length} real nearby housing leads are mapped.`
+            ? `${leadsResult.length} real nearby housing options found from public map data.`
             : `No priced listings or housing leads loaded yet. Try a broader search or connect a rental listings API.`,
       );
     } catch {
@@ -302,6 +366,20 @@ export default function App() {
     );
   }
 
+  const averageRentValue = hasSearched
+    ? convertedCurrency(market?.average_rent, market?.currency_code ?? "USD", displayCurrency)
+    : "Search first";
+  const safeListingsValue = hasSearched
+    ? market
+      ? `${market.safe_listing_count}/${market.listing_count}`
+      : "Loading"
+    : "Search first";
+  const averageDistanceValue = hasSearched
+    ? market?.average_distance_miles
+      ? `${market.average_distance_miles} mi`
+      : "No data yet"
+    : "Search first";
+
   return (
     <main>
       <section className="hero">
@@ -312,9 +390,14 @@ export default function App() {
             </span>
             <span>CampusRent</span>
           </div>
+          <div className="nav-center">
+            <a href="#results">Search</a>
+            <a href="#sources">Sources</a>
+            <a href="#contact">Contact</a>
+          </div>
           <div className="nav-pill">
             <ShieldCheck size={16} />
-            Scam-aware student housing
+            Get in Touch
           </div>
         </nav>
 
@@ -322,127 +405,171 @@ export default function App() {
           <div className="hero-copy">
             <div className="eyebrow">
               <Sparkles size={16} />
-              Fast search, clean listings, smarter ranking
+              Off-campus only | priced listings first
             </div>
-            <h1>Find campus apartments with confidence.</h1>
+            <h1>
+              Powering smarter <span>off-campus</span> housing search.
+            </h1>
             <p>
-              Search by school, budget, distance, and trust signals. CampusRent blends
-              recommendation scoring with saved listings and side-by-side comparison.
+              Search nearby apartments by school, budget, distance, price, and source quality.
+              Dorms stay out; price-bearing rental links move to the top.
             </p>
           </div>
 
-          <div className="search-panel">
-            <label>
-              School
-              <div className="input-wrap">
-                <Search size={18} />
-                <input
-                  value={schoolQuery}
-                  onChange={(event) => setSchoolQuery(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      void runSearch(schoolQuery);
-                    }
-                  }}
-                  placeholder="NYU, Columbia, Berkeley..."
-                />
-                <button
-                  className="inline-search"
-                  type="button"
-                  onClick={() => void runSearch(schoolQuery)}
-                  aria-label="Search this school"
-                >
-                  <Search size={16} />
-                </button>
-              </div>
-            </label>
-            <div
-              className={`school-suggestions ${schools.length > 0 || schoolsLoading ? "open" : ""}`}
-              aria-hidden={schools.length === 0 && !schoolsLoading}
-            >
-              {schools.map((school) => (
-                <button
-                  className="school-option"
-                  key={school.id}
-                  onClick={() => {
-                    setSelectedSchool(school.name);
-                    setSchoolQuery(school.name);
-                    setSelectedSchoolMeta(school);
-                    setSchools([]);
-                    void runSearch(school.name);
-                  }}
-                >
-                  <span>
-                    <strong>{school.name}</strong>
-                    <small>{school.acronym} | {school.city}, {school.state}</small>
-                  </span>
-                  <em>Search</em>
-                </button>
-              ))}
-              {schoolsLoading && (
-                <div className="suggestion-loading">
-                  <Loader2 className="spin" size={15} />
-                  Searching global universities...
+          <div className="workspace-panel">
+            <div className="search-panel">
+              <label>
+                School
+                <div className="input-wrap">
+                  <Search size={18} />
+                  <input
+                    value={schoolQuery}
+                    onChange={(event) => setSchoolQuery(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        void runSearch(schoolQuery);
+                      }
+                    }}
+                    placeholder="NYU, Columbia, Berkeley..."
+                  />
+                  <button
+                    className="inline-search"
+                    type="button"
+                    onClick={() => void runSearch(schoolQuery)}
+                    aria-label="Search this school"
+                  >
+                    <Search size={16} />
+                  </button>
                 </div>
-              )}
-            </div>
+              </label>
+              <div
+                className={`school-suggestions ${schools.length > 0 || schoolsLoading ? "open" : ""}`}
+                aria-hidden={schools.length === 0 && !schoolsLoading}
+              >
+                {schools.map((school) => (
+                  <button
+                    className="school-option"
+                    key={school.id}
+                    onClick={() => {
+                      setSelectedSchool(school.name);
+                      setSchoolQuery(school.name);
+                      setSelectedSchoolMeta(school);
+                      syncCurrencyForSchool(school);
+                      setSchools([]);
+                      void runSearch(school.name);
+                    }}
+                  >
+                    <span>
+                      <strong>{school.name}</strong>
+                      <small>{school.acronym} | {school.city}, {school.state}</small>
+                    </span>
+                    <em>Search</em>
+                  </button>
+                ))}
+                {schoolsLoading && (
+                  <div className="suggestion-loading">
+                    <Loader2 className="spin" size={15} />
+                    Searching global universities...
+                  </div>
+                )}
+              </div>
 
-            <div className="field-row">
+              <div className="field-row">
+                <label>
+                  Keyword
+                  <input
+                    value={keyword}
+                    onChange={(event) => setKeyword(event.target.value)}
+                    placeholder="Optional: studio, furnished, pet friendly..."
+                  />
+                </label>
+                <label>
+                  Budget
+                  <input
+                    type="number"
+                    min="0"
+                    value={budget}
+                    onChange={(event) => setBudget(event.target.value)}
+                    placeholder="Optional max rent"
+                  />
+                </label>
+              </div>
+
+              <div className="field-row">
+                <label>
+                  Display currency
+                  <select value={displayCurrency} onChange={(event) => setDisplayCurrency(event.target.value)}>
+                    {CURRENCY_OPTIONS.map((option) => (
+                      <option value={option} key={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Student email for saves
+                  <input
+                    value={studentEmail}
+                    onChange={(event) => setStudentEmail(event.target.value)}
+                  />
+                </label>
+              </div>
+
               <label>
-                Keyword
+                Max distance: {maxDistance} miles
                 <input
-                  value={keyword}
-                  onChange={(event) => setKeyword(event.target.value)}
-                  placeholder="Optional: studio, furnished, pet friendly..."
+                  type="range"
+                  min="0.5"
+                  max="10"
+                  step="0.5"
+                  value={maxDistance}
+                  onChange={(event) => setMaxDistance(Number(event.target.value))}
                 />
               </label>
-              <label>
-                Budget
-                <input
-                  type="number"
-                  min="0"
-                  value={budget}
-                  onChange={(event) => setBudget(event.target.value)}
-                  placeholder="Optional max rent"
-                />
-              </label>
+
+              <button className="primary-action" onClick={() => void runSearch(schoolQuery)}>
+                {loading ? <Loader2 className="spin" size={18} /> : <Search size={18} />}
+                Search apartments
+              </button>
+              <p className="notice">{notice}</p>
+              <SourceStatus sources={dataSources} />
             </div>
 
-            <label>
-              Max distance: {maxDistance} miles
-              <input
-                type="range"
-                min="0.5"
-                max="10"
-                step="0.5"
-                value={maxDistance}
-                onChange={(event) => setMaxDistance(Number(event.target.value))}
-              />
-            </label>
-
-            <label>
-              Student email for saves
-              <input
-                value={studentEmail}
-                onChange={(event) => setStudentEmail(event.target.value)}
-              />
-            </label>
-
-            <button className="primary-action" onClick={() => void runSearch(schoolQuery)}>
-              {loading ? <Loader2 className="spin" size={18} /> : <Search size={18} />}
-              Search apartments
-            </button>
-            <p className="notice">{notice}</p>
-            <SourceStatus sources={dataSources} />
+            <div className="preview-panel">
+              <div className="preview-topline">
+                <span>Live workspace</span>
+                <strong>{hasSearched ? selectedSchool : "Ready"}</strong>
+              </div>
+              <div className="preview-stats">
+                <StatCard icon={<TrendingUp />} label="Average rent" value={averageRentValue} />
+                <StatCard icon={<ShieldCheck />} label="Safe listings" value={safeListingsValue} />
+                <StatCard icon={<MapPin />} label="Avg. distance" value={averageDistanceValue} />
+              </div>
+              <div className="preview-result">
+                <small>{listingSearchResults.length > 0 ? "Priced listings" : "Listing status"}</small>
+                <strong>
+                  {listingSearchResults.length > 0
+                    ? `${listingSearchResults.length} priced links found`
+                    : hasSearched
+                      ? "Connect keys for priced listings"
+                      : "Search to load results"}
+                </strong>
+                <p>
+                  {hasSearched
+                    ? "Only price-bearing listings appear as listing cards. Map leads stay as location context."
+                    : "Search a school and CampusRent will rank priced listings when a listing API is configured."}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      <section className={`dashboard ${loading ? "is-refreshing" : ""}`} ref={resultsRef}>
+      <section className={`dashboard ${loading ? "is-refreshing" : ""}`} ref={resultsRef} id="results">
         <div className="stats-grid">
-          <StatCard icon={<TrendingUp />} label="Average rent" value={currency(market?.average_rent, market?.currency_code ?? "USD")} />
-          <StatCard icon={<ShieldCheck />} label="Safe listings" value={market ? `${market.safe_listing_count}/${market.listing_count}` : "--"} />
-          <StatCard icon={<MapPin />} label="Avg. distance" value={market?.average_distance_miles ? `${market.average_distance_miles} mi` : "--"} />
+          <StatCard icon={<TrendingUp />} label="Average rent" value={averageRentValue} />
+          <StatCard icon={<ShieldCheck />} label="Safe listings" value={safeListingsValue} />
+          <StatCard icon={<MapPin />} label="Avg. distance" value={averageDistanceValue} />
         </div>
 
         {market && <div className="market-note">{market.budget_hint}</div>}
@@ -453,9 +580,9 @@ export default function App() {
               <SlidersHorizontal size={15} />
               Ranked results
             </span>
-            <h2>Recommended apartments</h2>
+            <h2>{recommendations.length > 0 ? "Recommended apartments" : "Nearby housing options"}</h2>
           </div>
-          <button className="secondary-action" onClick={() => void compareSelected()}>
+          <button className="secondary-action" onClick={() => void compareSelected()} disabled={selectedIds.length < 2}>
             <BadgeCheck size={17} />
             Compare selected ({selectedIds.length})
           </button>
@@ -478,7 +605,7 @@ export default function App() {
               <p>{item.listing.address ?? `${item.listing.city}, ${item.listing.state}`}</p>
               <ListingContact listing={item.listing} />
               <div className="price-row">
-                <span>{currency(item.listing.monthly_rent, item.listing.currency_code)}</span>
+                <span>{convertedCurrency(item.listing.monthly_rent, item.listing.currency_code, displayCurrency)}</span>
                 <small>{item.distance_miles} mi | safety {item.scam_safety_score}</small>
               </div>
               <div className="card-actions">
@@ -497,9 +624,19 @@ export default function App() {
               </div>
             </article>
           ))}
+          {recommendations.length === 0 &&
+            listingSearchResults.map((result, index) => (
+              <ListingSearchResultCard result={result} index={index} displayCurrency={displayCurrency} key={result.id} />
+            ))}
         </div>
 
-        {housingLeads.length > 0 && (
+        {recommendations.length === 0 && listingSearchResults.length === 0 && housingLeads.length > 0 && (
+          <div className="market-note">
+            CampusRent found nearby apartment buildings on the map, but no priced rental listings from connected listing APIs yet. Add RentCast or SerpAPI keys to show price-bearing listings here.
+          </div>
+        )}
+
+        {recommendations.length > 0 && housingLeads.length > 0 && (
           <HousingLeadPanel leads={housingLeads} />
         )}
 
@@ -531,7 +668,7 @@ export default function App() {
           </section>
         )}
 
-        {!loading && recommendations.length === 0 && housingLeads.length === 0 && (
+        {!loading && recommendations.length === 0 && listingSearchResults.length === 0 && housingLeads.length === 0 && (
           <div className="empty-state">
             <Sparkles size={28} />
             <h2>{hasSearched ? "No imported listings for this search yet." : "Start with a school search."}</h2>
@@ -600,6 +737,85 @@ function SourceStatus({ sources }: { sources: DataSource[] }) {
         <span>{visibleSources.map((source) => source.coverage).join(" | ") || "Loading source status..."}</span>
       </div>
     </div>
+  );
+}
+
+function ListingSearchResultCard({
+  result,
+  index,
+  displayCurrency,
+}: {
+  result: ListingSearchResult;
+  index: number;
+  displayCurrency: string;
+}) {
+  return (
+    <article className="listing-card search-result-card" style={{ animationDelay: `${index * 50}ms` }}>
+      <div className="card-topline">
+        <span>{result.source_name}</span>
+        <strong>{result.rank}</strong>
+      </div>
+      <h3>{result.title}</h3>
+      <p>{result.snippet ?? "Open the source page to review price, availability, photos, and contact information."}</p>
+      <div className="contact-strip">
+        <span>{result.display_url ?? result.provider}</span>
+        <a href={result.source_url} target="_blank" rel="noreferrer">
+          View listing
+        </a>
+      </div>
+      <div className="price-row">
+        <span>{convertedCurrency(result.monthly_rent, result.currency_code, displayCurrency)}</span>
+        <small>source showed {result.price_label}</small>
+      </div>
+      <div className="card-actions">
+        <a href={result.source_url} target="_blank" rel="noreferrer">
+          <ExternalLink size={16} />
+          Open source
+        </a>
+      </div>
+    </article>
+  );
+}
+
+function HousingLeadCard({ lead, index }: { lead: HousingLead; index: number }) {
+  return (
+    <article className="listing-card lead-result-card" style={{ animationDelay: `${index * 50}ms` }}>
+      <div className="card-topline">
+        <span>Verified map source</span>
+        <strong>{Math.max(72, 94 - index)}</strong>
+      </div>
+      <h3>{lead.name}</h3>
+      <p>{lead.address ?? "Exact address not listed by the public map source."}</p>
+      <div className="contact-strip">
+        <span>{lead.website ? "Website available" : "Contact details may be on the source page"}</span>
+        {lead.website ? (
+          <a href={lead.website} target="_blank" rel="noreferrer">
+            Open site
+          </a>
+        ) : (
+          <a href={lead.source_url} target="_blank" rel="noreferrer">
+            Open source
+          </a>
+        )}
+      </div>
+      <div className="price-row">
+        <span>Price check needed</span>
+        <small>{lead.source_name}</small>
+      </div>
+      <div className="card-actions">
+        {lead.phone && <a href={`tel:${lead.phone}`}>Call</a>}
+        {lead.email && <a href={`mailto:${lead.email}`}>Email</a>}
+        {lead.website && (
+          <a href={lead.website} target="_blank" rel="noreferrer">
+            Website
+          </a>
+        )}
+        <a href={lead.source_url} target="_blank" rel="noreferrer">
+          <ExternalLink size={16} />
+          Source
+        </a>
+      </div>
+    </article>
   );
 }
 
@@ -763,6 +979,10 @@ function ListingMap({
   const lngSpan = maxLng - minLng || 0.01;
   const bboxPadding = Math.max(latSpan, lngSpan, 0.02) * 0.45;
   const mapEmbedUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${minLng - bboxPadding}%2C${minLat - bboxPadding}%2C${maxLng + bboxPadding}%2C${maxLat + bboxPadding}&layer=mapnik`;
+  const mapOpenUrl =
+    schoolPoint
+      ? `https://www.openstreetmap.org/#map=14/${schoolPoint.lat}/${schoolPoint.lng}`
+      : `https://www.openstreetmap.org/#map=14/${allPoints[0].lat}/${allPoints[0].lng}`;
 
   function position(lat: number, lng: number) {
     return {
@@ -796,6 +1016,9 @@ function ListingMap({
           loading="lazy"
           referrerPolicy="no-referrer-when-downgrade"
         />
+        <a className="map-open-link" href={mapOpenUrl} target="_blank" rel="noreferrer">
+          Open interactive map
+        </a>
         {schoolPoint && (
           <div className="map-pin school-pin" style={position(schoolPoint.lat, schoolPoint.lng)}>
             <Building2 size={16} />
@@ -811,11 +1034,12 @@ function ListingMap({
             target="_blank"
             rel="noreferrer"
             title={`${point.title} | ${point.rent} | score ${point.score}`}
+            aria-label={`${point.title}, ${point.rent}`}
           >
             <span>{index + 1}</span>
           </a>
         ))}
-        {leadPoints.map((point, index) => (
+        {leadPoints.map((point) => (
           <a
             key={point.id}
             className="map-pin lead-pin"
@@ -824,8 +1048,9 @@ function ListingMap({
             target="_blank"
             rel="noreferrer"
             title={`${point.title} | housing lead`}
+            aria-label={point.title}
           >
-            <span>H{index + 1}</span>
+            <span />
           </a>
         ))}
       </div>

@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.core.config import settings
 from app.schemas.data_source import DataSourceRead
 from app.services.scraper_registry import list_scrapers
 
@@ -13,6 +14,8 @@ def coverage_for_source(key: str) -> str:
         return "US public rental RSS fallback for supported Craigslist markets"
     if key == "openstreetmap-overpass-housing":
         return "Nearby apartment/residential building map leads, no API key required"
+    if key == "serpapi-listing-search":
+        return "Real external rental listing links from trusted search results when SERPAPI_API_KEY is configured"
     if key == "demo-global-feed":
         return "Development demo listings across several global cities"
     if key == "demo-html-feed":
@@ -41,6 +44,16 @@ def list_data_sources() -> list[DataSourceRead]:
             requires_api_key=False,
             is_configured=True,
             coverage=coverage_for_source("openstreetmap-overpass-housing"),
+        )
+    )
+    sources.append(
+        DataSourceRead(
+            key="serpapi-listing-search",
+            source_name="SerpAPI Listing Search",
+            description="Legal search API adapter for real external rental listing pages from trusted rental websites.",
+            requires_api_key=True,
+            is_configured=bool(settings.serpapi_api_key),
+            coverage=coverage_for_source("serpapi-listing-search"),
         )
     )
     return sources

@@ -14,6 +14,21 @@ from app.services.external_school_search import find_or_fetch_school
 router = APIRouter(prefix="/housing-leads", tags=["housing leads"])
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+EXCLUDED_TAG_VALUES = {
+    "dormitory",
+    "university",
+    "college",
+    "school",
+    "student_accommodation",
+}
+EXCLUDED_TEXT_MARKERS = (
+    "dormitory",
+    "dorm",
+    "residence hall",
+    "student residence",
+    "student housing",
+    "college house",
+)
 
 
 def osm_query(latitude: Decimal, longitude: Decimal, radius_meters: int) -> str:
@@ -22,9 +37,9 @@ def osm_query(latitude: Decimal, longitude: Decimal, radius_meters: int) -> str:
     return f"""
     [out:json][timeout:12];
     (
-      node(around:{radius_meters},{lat},{lon})["building"~"apartments|residential|dormitory"];
-      way(around:{radius_meters},{lat},{lon})["building"~"apartments|residential|dormitory"];
-      relation(around:{radius_meters},{lat},{lon})["building"~"apartments|residential|dormitory"];
+      node(around:{radius_meters},{lat},{lon})["building"="apartments"];
+      way(around:{radius_meters},{lat},{lon})["building"="apartments"];
+      relation(around:{radius_meters},{lat},{lon})["building"="apartments"];
       node(around:{radius_meters},{lat},{lon})["apartments"];
       way(around:{radius_meters},{lat},{lon})["apartments"];
     );
@@ -62,6 +77,22 @@ def overpass_source_url(element: dict) -> str:
     return f"https://www.openstreetmap.org/{element['type']}/{element['id']}"
 
 
+def is_off_campus_apartment_lead(tags: dict) -> bool:
+    normalized = {key: str(value).lower() for key, value in tags.items() if value is not None}
+    for key in ("building", "amenity", "residential", "accommodation", "community"):
+        if normalized.get(key) in EXCLUDED_TAG_VALUES:
+            return False
+
+    searchable_text = " ".join(
+        normalized.get(key, "")
+        for key in ("name", "operator", "description", "official_name", "alt_name")
+    )
+    if any(marker in searchable_text for marker in EXCLUDED_TEXT_MARKERS):
+        return False
+
+    return True
+
+
 @router.get("/nearby", response_model=list[HousingLeadRead])
 def get_nearby_housing_leads(
     school_name: str = Query(min_length=2),
@@ -92,6 +123,9 @@ def get_nearby_housing_leads(
             continue
 
         tags = element.get("tags") or {}
+        if not is_off_campus_apartment_lead(tags):
+            continue
+
         lead_id = f"{element['type']}-{element['id']}"
         if lead_id in seen:
             continue
