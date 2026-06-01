@@ -16,6 +16,8 @@ def coverage_for_source(key: str) -> str:
         return "Nearby apartment/residential building map leads, no API key required"
     if key == "serpapi-listing-search":
         return "Real external rental listing links from trusted search results when SERPAPI_API_KEY is configured"
+    if key == "trellistate-public-listings":
+        return "Free public rental listing API for active listings where Trellistate has inventory"
     if key == "demo-global-feed":
         return "Development demo listings across several global cities"
     if key == "demo-html-feed":
@@ -44,6 +46,16 @@ def list_data_sources() -> list[DataSourceRead]:
             requires_api_key=False,
             is_configured=True,
             coverage=coverage_for_source("openstreetmap-overpass-housing"),
+        )
+    )
+    sources.append(
+        DataSourceRead(
+            key="trellistate-public-listings",
+            source_name="Trellistate Public Listings",
+            description="Free public rental listing API. No API key required for reads.",
+            requires_api_key=False,
+            is_configured=True,
+            coverage=coverage_for_source("trellistate-public-listings"),
         )
     )
     sources.append(

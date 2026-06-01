@@ -194,6 +194,16 @@ export default function App() {
   const resultsRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
+    function moveGlow(event: PointerEvent) {
+      document.documentElement.style.setProperty("--cursor-x", `${event.clientX}px`);
+      document.documentElement.style.setProperty("--cursor-y", `${event.clientY}px`);
+    }
+
+    window.addEventListener("pointermove", moveGlow, { passive: true });
+    return () => window.removeEventListener("pointermove", moveGlow);
+  }, []);
+
+  useEffect(() => {
     const timer = window.setTimeout(async () => {
       if (schoolQuery.trim().length < 2) return;
       setSchoolsLoading(true);
@@ -635,7 +645,12 @@ export default function App() {
 
         {recommendations.length === 0 && listingSearchResults.length === 0 && housingLeads.length > 0 && (
           <div className="market-note">
-            CampusRent found nearby apartment buildings on the map, but no priced rental listings from connected listing APIs yet. Add RentCast or SerpAPI keys to show price-bearing listings here.
+            <strong>Map context is live, but priced listing cards need a listing API key.</strong>
+            <span>
+              CampusRent found nearby off-campus apartment buildings on the map. To import real price-bearing cards with images and source links,
+              add a RentCast or SerpAPI key; until then, open a trusted rental search below.
+            </span>
+            <TrustedSearchLinks school={selectedSchoolMeta} query={selectedSchool} />
           </div>
         )}
 
