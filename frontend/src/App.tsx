@@ -124,8 +124,8 @@ async function api<T>(path: string, options?: RequestInit): Promise<T> {
 export default function App() {
   const [schoolQuery, setSchoolQuery] = useState("NYU");
   const [selectedSchool, setSelectedSchool] = useState("NYU");
-  const [keyword, setKeyword] = useState("studio");
-  const [budget, setBudget] = useState(3000);
+  const [keyword, setKeyword] = useState("");
+  const [budget, setBudget] = useState("");
   const [maxDistance, setMaxDistance] = useState(2);
   const [studentEmail, setStudentEmail] = useState("student@example.edu");
   const [schools, setSchools] = useState<SchoolOption[]>([]);
@@ -196,12 +196,16 @@ export default function App() {
     try {
       const params = new URLSearchParams({
         school_name: searchSchool,
-        q: keyword,
-        max_rent: String(budget),
         max_distance_miles: String(maxDistance),
         min_scam_safety: "70",
         limit: "8",
       });
+      if (keyword.trim().length >= 2) {
+        params.set("q", keyword.trim());
+      }
+      if (budget.trim().length > 0) {
+        params.set("max_rent", budget.trim());
+      }
       const [marketSettled, recSettled, leadsSettled] = await Promise.allSettled([
         api<MarketSummary>(`/api/v1/market/summary?school_name=${encodeURIComponent(searchSchool)}`),
         api<Recommendation[]>(`/api/v1/listings/recommendations?${params}`),
@@ -278,7 +282,7 @@ export default function App() {
         body: JSON.stringify({
           school_name: selectedSchool,
           listing_ids: selectedIds,
-          max_rent: budget,
+          max_rent: budget.trim().length > 0 ? Number(budget) : null,
         }),
       });
       setComparisons(result.comparisons);
@@ -370,7 +374,7 @@ export default function App() {
                 >
                   <span>
                     <strong>{school.name}</strong>
-                    <small>{school.acronym} Â· {school.city}, {school.state}</small>
+                    <small>{school.acronym} | {school.city}, {school.state}</small>
                   </span>
                   <em>Search</em>
                 </button>
@@ -386,14 +390,20 @@ export default function App() {
             <div className="field-row">
               <label>
                 Keyword
-                <input value={keyword} onChange={(event) => setKeyword(event.target.value)} />
+                <input
+                  value={keyword}
+                  onChange={(event) => setKeyword(event.target.value)}
+                  placeholder="Optional: studio, furnished, pet friendly..."
+                />
               </label>
               <label>
                 Budget
                 <input
                   type="number"
+                  min="0"
                   value={budget}
-                  onChange={(event) => setBudget(Number(event.target.value))}
+                  onChange={(event) => setBudget(event.target.value)}
+                  placeholder="Optional max rent"
                 />
               </label>
             </div>
@@ -461,7 +471,7 @@ export default function App() {
           {recommendations.map((item, index) => (
             <article className="listing-card" key={item.listing.id} style={{ animationDelay: `${index * 60}ms` }}>
               <div className="card-topline">
-                <span>{item.listing.bedrooms ?? "?"} bd Â· {item.listing.bathrooms ?? "?"} ba</span>
+                <span>{item.listing.bedrooms ?? "?"} bd | {item.listing.bathrooms ?? "?"} ba</span>
                 <strong>{item.campus_rent_score}</strong>
               </div>
               <h3>{item.listing.title}</h3>
@@ -469,7 +479,7 @@ export default function App() {
               <ListingContact listing={item.listing} />
               <div className="price-row">
                 <span>{currency(item.listing.monthly_rent, item.listing.currency_code)}</span>
-                <small>{item.distance_miles} mi Â· safety {item.scam_safety_score}</small>
+                <small>{item.distance_miles} mi | safety {item.scam_safety_score}</small>
               </div>
               <div className="card-actions">
                 <button onClick={() => toggleListing(item.listing.id)} className={selectedIds.includes(item.listing.id) ? "selected" : ""}>
@@ -800,7 +810,7 @@ function ListingMap({
             href={`https://www.openstreetmap.org/?mlat=${point.lat}&mlon=${point.lng}#map=15/${point.lat}/${point.lng}`}
             target="_blank"
             rel="noreferrer"
-            title={`${point.title} Â· ${point.rent} Â· score ${point.score}`}
+            title={`${point.title} | ${point.rent} | score ${point.score}`}
           >
             <span>{index + 1}</span>
           </a>
@@ -813,7 +823,7 @@ function ListingMap({
             href={point.url}
             target="_blank"
             rel="noreferrer"
-            title={`${point.title} Â· housing lead`}
+            title={`${point.title} | housing lead`}
           >
             <span>H{index + 1}</span>
           </a>
