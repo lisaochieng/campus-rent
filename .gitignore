@@ -28,5 +28,8 @@ Thumbs.db
 # Docker/local data
 docker-data/
 
+# Frontend build output
+frontend/dist/
+
 # Logs
 *.log

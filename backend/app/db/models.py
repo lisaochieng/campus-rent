@@ -156,6 +156,21 @@ class Listing(Base):
         cascade="all, delete-orphan",
     )
 
+    @property
+    def contact_name(self) -> str | None:
+        payload = self.raw_payload or {}
+        return payload.get("contact_name")
+
+    @property
+    def contact_phone(self) -> str | None:
+        payload = self.raw_payload or {}
+        return payload.get("contact_phone")
+
+    @property
+    def contact_email(self) -> str | None:
+        payload = self.raw_payload or {}
+        return payload.get("contact_email")
+
 
 class ScamSignal(Base):
     __tablename__ = "scam_signals"

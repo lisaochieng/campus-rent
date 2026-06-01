@@ -32,6 +32,9 @@ class ListingRead(BaseModel):
     bedrooms: Decimal | None
     bathrooms: Decimal | None
     square_feet: int | None
+    contact_name: str | None = None
+    contact_phone: str | None = None
+    contact_email: str | None = None
     status: ListingStatus
     first_seen_at: datetime
     last_seen_at: datetime
@@ -130,6 +133,9 @@ class ListingCreate(BaseModel):
     bedrooms: Decimal | None = Field(default=None, ge=0)
     bathrooms: Decimal | None = Field(default=None, ge=0)
     square_feet: int | None = Field(default=None, gt=0)
+    contact_name: str | None = Field(default=None, max_length=255)
+    contact_phone: str | None = Field(default=None, max_length=80)
+    contact_email: str | None = Field(default=None, max_length=255)
 
 
 class ListingIngestItem(BaseModel):
@@ -149,6 +155,9 @@ class ListingIngestItem(BaseModel):
     bedrooms: Decimal | None = Field(default=None, ge=0)
     bathrooms: Decimal | None = Field(default=None, ge=0)
     square_feet: int | None = Field(default=None, gt=0)
+    contact_name: str | None = Field(default=None, max_length=255)
+    contact_phone: str | None = Field(default=None, max_length=80)
+    contact_email: str | None = Field(default=None, max_length=255)
 
 
 class ListingIngestRequest(BaseModel):

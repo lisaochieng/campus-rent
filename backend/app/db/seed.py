@@ -66,6 +66,22 @@ SEED_SCHOOLS = [
         "latitude": Decimal("6.515800"),
         "longitude": Decimal("3.389900"),
     },
+    {
+        "name": "University of Sydney",
+        "city": "Sydney",
+        "state": "NSW",
+        "country": "AU",
+        "latitude": Decimal("-33.888600"),
+        "longitude": Decimal("151.187300"),
+    },
+    {
+        "name": "University of Cape Town",
+        "city": "Cape Town",
+        "state": "Western Cape",
+        "country": "ZA",
+        "latitude": Decimal("-33.957700"),
+        "longitude": Decimal("18.461200"),
+    },
 ]
 
 SEED_SOURCES = [

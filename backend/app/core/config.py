@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     opensearch_url: str = "http://localhost:9200"
     ingestion_api_key: str = "campusrent-local-dev-key"
+    rentcast_api_key: str | None = None
     log_level: str = "INFO"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 

@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session, selectinload
 from app.db.models import Listing, ListingStatus
 from app.db.session import get_db
 from app.schemas.market import BedroomRentSummary, MarketSummary
+from app.services.external_school_search import find_or_fetch_school
 from app.services.listing_presentation import listing_search_result
-from app.services.school_matching import find_school_by_name
+from app.services.on_demand_ingestion import ingest_real_listings_for_school_if_needed
 
 router = APIRouter(prefix="/market", tags=["market"])
 
@@ -42,12 +43,14 @@ def get_market_summary(
     min_scam_safety: int = Query(default=70, ge=0, le=100),
     db: Session = Depends(get_db),
 ) -> MarketSummary:
-    school = find_school_by_name(db, school_name)
+    school = find_or_fetch_school(db, school_name)
     if school is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="School not found.",
         )
+
+    ingest_real_listings_for_school_if_needed(db, school)
 
     listings = db.scalars(
         select(Listing)
@@ -92,6 +95,8 @@ def get_market_summary(
         school_name=school.name,
         city=school.city,
         state=school.state,
+        latitude=school.latitude,
+        longitude=school.longitude,
         listing_count=len(scored_results),
         safe_listing_count=len(safe_results),
         average_rent=average_rent,

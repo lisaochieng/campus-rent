@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.db.models import School
 from app.db.session import get_db
 from app.schemas.school import SchoolCreate, SchoolRead, SchoolSearchResult
+from app.services.external_school_search import search_openalex_schools, upsert_external_school
 from app.services.school_matching import school_acronym, search_schools
 
 router = APIRouter(prefix="/schools", tags=["schools"])
@@ -52,6 +53,16 @@ def search_school_options(
     limit: int = Query(default=10, ge=1, le=25),
     db: Session = Depends(get_db),
 ) -> list[SchoolSearchResult]:
+    local_matches = search_schools(db, q, limit)
+    if len(local_matches) < limit:
+        existing_names = {school.name.lower() for school in local_matches}
+        for external_school in search_openalex_schools(q, limit - len(local_matches)):
+            if external_school.name.lower() in existing_names:
+                continue
+            local_matches.append(upsert_external_school(db, external_school))
+            existing_names.add(external_school.name.lower())
+        db.commit()
+
     return [
         SchoolSearchResult(
             id=school.id,
@@ -63,5 +74,5 @@ def search_school_options(
             longitude=school.longitude,
             acronym=school_acronym(school.name),
         )
-        for school in search_schools(db, q, limit)
+        for school in local_matches[:limit]
     ]

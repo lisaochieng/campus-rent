@@ -15,6 +15,8 @@ class MarketSummary(BaseModel):
     school_name: str
     city: str
     state: str
+    latitude: Decimal
+    longitude: Decimal
     listing_count: int
     safe_listing_count: int
     average_rent: int | None

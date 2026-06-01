@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from decimal import Decimal
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -21,6 +23,8 @@ def scraper_read_model(scraper) -> ScraperSourceRead:
         key=scraper.key,
         source_name=scraper.source_name,
         description=scraper.description,
+        requires_api_key=scraper.requires_api_key,
+        is_configured=scraper.is_configured(),
     )
 
 
@@ -49,6 +53,12 @@ def get_scraper_sources() -> list[ScraperSourceRead]:
 @router.post("/{source_key}", response_model=ScraperRunResponse)
 def run_scraper_source(
     source_key: str,
+    city: str | None = Query(default=None, min_length=2, max_length=120),
+    state: str | None = Query(default=None, min_length=2, max_length=80),
+    latitude: Decimal | None = Query(default=None),
+    longitude: Decimal | None = Query(default=None),
+    radius_miles: int = Query(default=10, ge=1, le=50),
+    limit: int = Query(default=20, ge=1, le=100),
     db: Session = Depends(get_db),
 ) -> ScraperRunResponse:
     scraper = get_scraper(source_key)
@@ -59,10 +69,25 @@ def run_scraper_source(
         )
 
     ensure_scraper_source(db, scraper)
+    try:
+        items = scraper.fetch(
+            city=city,
+            state=state,
+            latitude=latitude,
+            longitude=longitude,
+            radius_miles=radius_miles,
+            limit=limit,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
     ingestion = ingest_listing_batch(
         db=db,
         source_name=scraper.source_name,
-        items=scraper.fetch(),
+        items=items,
     )
 
     return ScraperRunResponse(

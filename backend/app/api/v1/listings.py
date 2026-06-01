@@ -21,7 +21,9 @@ from app.services.cache import (
     get_cached_listing_ids,
     set_cached_listing_ids,
 )
+from app.services.external_school_search import find_or_fetch_school
 from app.services.listing_presentation import listing_comparison, listing_search_result
+from app.services.on_demand_ingestion import ingest_real_listings_for_school_if_needed
 from app.services.scam_detection import refresh_persisted_scam_signals
 from app.services.search_index import index_listing, get_search_client, search_listing_ids
 from app.services.school_matching import find_school_by_name
@@ -112,7 +114,7 @@ def get_listing_filter_options(
     min_scam_safety: int = Query(default=70, ge=0, le=100),
     db: Session = Depends(get_db),
 ) -> ListingFilterOptions:
-    school = find_school_by_name(db, school_name)
+    school = find_or_fetch_school(db, school_name)
     if school is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -221,6 +223,8 @@ def recommend_listings_for_student(
             detail="School not found.",
         )
 
+    ingest_real_listings_for_school_if_needed(db, school)
+
     if q:
         listing_ids = search_listing_ids(
             query=q,
@@ -230,14 +234,23 @@ def recommend_listings_for_student(
             min_scam_safety=min_scam_safety,
             limit=100,
         )
-        if not listing_ids:
-            return []
-
-        statement = (
-            select(Listing)
-            .options(selectinload(Listing.source), selectinload(Listing.scam_signals))
-            .where(Listing.id.in_(listing_ids), Listing.status == ListingStatus.ACTIVE)
-        )
+        if listing_ids:
+            statement = (
+                select(Listing)
+                .options(selectinload(Listing.source), selectinload(Listing.scam_signals))
+                .where(Listing.id.in_(listing_ids), Listing.status == ListingStatus.ACTIVE)
+            )
+        else:
+            statement = (
+                select(Listing)
+                .options(selectinload(Listing.source), selectinload(Listing.scam_signals))
+                .where(
+                    Listing.status == ListingStatus.ACTIVE,
+                    Listing.city.ilike(school.city),
+                    Listing.state.ilike(school.state),
+                )
+                .limit(250)
+            )
     else:
         statement = (
             select(Listing)
