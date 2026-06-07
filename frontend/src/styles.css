@@ -27,6 +27,11 @@
   transition: var(--ease-silk);
 }
 
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -1444,10 +1449,11 @@ nav {
   width: 100%;
   min-height: 100vh;
   display: grid;
-  grid-template-columns: minmax(360px, 35%) minmax(0, 65%);
+  grid-template-columns: minmax(0, 35%) minmax(0, 65%);
   grid-template-rows: auto 1fr;
   gap: 0;
   padding: 7.5rem 0 0;
+  overflow: hidden;
 }
 
 .workspace-panel {
@@ -1458,8 +1464,10 @@ nav {
   grid-column: 1;
   grid-row: 1;
   width: 100%;
-  padding: 0 3rem 1.5rem;
+  min-width: 0;
+  padding: 0 2rem 1.5rem 3rem;
   color: var(--primary-dark);
+  overflow: hidden;
 }
 
 .eyebrow {
@@ -1490,14 +1498,18 @@ h1 {
   grid-column: 1;
   grid-row: 2;
   align-self: end;
-  margin: 0 3rem 3rem;
-  padding: 0;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0 2rem 3rem 3rem;
   color: var(--primary-dark);
   background: transparent;
   border: 0;
   box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  overflow: hidden;
 }
 
 .search-panel label {
@@ -1507,11 +1519,14 @@ h1 {
 
 .search-panel input,
 .search-panel select {
+  width: 100%;
+  max-width: 100%;
   min-height: 54px;
   color: var(--primary-dark);
   background: #ffffff;
   border: 2px solid var(--primary-dark);
   border-radius: 18px;
+  padding: 0.75rem 1rem;
   box-shadow: inset 0 -4px 0 rgba(43, 20, 8, 0.08);
 }
 
@@ -1530,16 +1545,39 @@ h1 {
   color: var(--primary-dark);
 }
 
+.input-wrap,
+.input-wrap input {
+  width: 100%;
+  max-width: 100%;
+}
+
 .inline-search {
-  color: #ffffff;
-  background: var(--primary-dark);
+  color: var(--primary-dark);
+  background: transparent;
   border-radius: 999px;
   box-shadow: none;
 }
 
+.inline-search svg {
+  color: var(--primary-dark);
+}
+
 .inline-search:hover {
+  color: #ffffff;
   background: var(--accent-bright);
   box-shadow: 4px 4px 0 var(--primary-dark);
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+  width: 100%;
+  max-width: 100%;
+}
+
+.field-row label {
+  min-width: 0;
 }
 
 .school-suggestions button {
@@ -1589,6 +1627,9 @@ h1 {
 }
 
 .search-panel input[type="range"] {
+  width: 100%;
+  max-width: 100%;
+  display: block;
   border: 0;
   background: transparent;
   box-shadow: none;
