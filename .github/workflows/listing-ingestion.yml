@@ -1,0 +1,47 @@
+name: Scheduled Listing Ingestion
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 5 * * 0"
+
+jobs:
+  ingest-listings:
+    name: Refresh listing cache
+    runs-on: ubuntu-latest
+
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      RENTCAST_API_KEY: ${{ secrets.RENTCAST_API_KEY }}
+      SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
+      REDIS_URL: redis://localhost:6379/0
+      OPENSEARCH_URL: http://localhost:9200
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install backend dependencies
+        run: python -m pip install -r backend/requirements.txt
+
+      - name: Run database migrations
+        working-directory: backend
+        run: alembic upgrade head
+
+      - name: Run scheduled listing ingestion
+        working-directory: backend
+        run: |
+          python -m app.jobs.ingest_listings \
+            --school "New York University" \
+            --school "Princeton University" \
+            --school "The University of Texas at Austin" \
+            --school "University of California, Berkeley" \
+            --limit 50 \
+            --radius-miles 10

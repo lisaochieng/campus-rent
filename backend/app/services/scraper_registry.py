@@ -67,6 +67,70 @@ CRAIGSLIST_MARKETS_BY_CITY = {
     "washington": "washingtondc",
 }
 
+TRELLISTATE_URL = "https://trellistate.com/api/v1/listings"
+US_STATE_ABBREVIATIONS = {
+    "alabama": "AL",
+    "alaska": "AK",
+    "arizona": "AZ",
+    "arkansas": "AR",
+    "california": "CA",
+    "colorado": "CO",
+    "connecticut": "CT",
+    "delaware": "DE",
+    "district of columbia": "DC",
+    "florida": "FL",
+    "georgia": "GA",
+    "hawaii": "HI",
+    "idaho": "ID",
+    "illinois": "IL",
+    "indiana": "IN",
+    "iowa": "IA",
+    "kansas": "KS",
+    "kentucky": "KY",
+    "louisiana": "LA",
+    "maine": "ME",
+    "maryland": "MD",
+    "massachusetts": "MA",
+    "michigan": "MI",
+    "minnesota": "MN",
+    "mississippi": "MS",
+    "missouri": "MO",
+    "montana": "MT",
+    "nebraska": "NE",
+    "nevada": "NV",
+    "new hampshire": "NH",
+    "new jersey": "NJ",
+    "new mexico": "NM",
+    "new york": "NY",
+    "north carolina": "NC",
+    "north dakota": "ND",
+    "ohio": "OH",
+    "oklahoma": "OK",
+    "oregon": "OR",
+    "pennsylvania": "PA",
+    "rhode island": "RI",
+    "south carolina": "SC",
+    "south dakota": "SD",
+    "tennessee": "TN",
+    "texas": "TX",
+    "utah": "UT",
+    "vermont": "VT",
+    "virginia": "VA",
+    "washington": "WA",
+    "west virginia": "WV",
+    "wisconsin": "WI",
+    "wyoming": "WY",
+}
+
+
+def normalize_us_state(value: str | None) -> str | None:
+    if not value:
+        return None
+    cleaned = value.strip()
+    if len(cleaned) == 2:
+        return cleaned.upper()
+    return US_STATE_ABBREVIATIONS.get(cleaned.lower(), cleaned)
+
 
 class ListingScraper(ABC):
     key: str
@@ -407,6 +471,183 @@ class RentCastRentalScraper(ListingScraper):
         )
 
 
+class TrellistatePublicListingScraper(ListingScraper):
+    key = "trellistate-public-listings"
+    source_name = "Trellistate Public Listings"
+    base_url = TRELLISTATE_URL
+    description = "No-key public rental listing API with sparse but real priced inventory."
+
+    def fetch(
+        self,
+        *,
+        city: str | None = None,
+        state: str | None = None,
+        latitude: Decimal | None = None,
+        longitude: Decimal | None = None,
+        radius_miles: int = 10,
+        limit: int = 20,
+    ) -> list[ListingIngestItem]:
+        if not city:
+            raise RuntimeError("Trellistate scraper requires a city.")
+
+        query = {
+            "city": city,
+            "listing_type": "rent",
+            "limit": min(limit, 50),
+        }
+        if state:
+            query["state"] = normalize_us_state(state) or state
+
+        request = Request(
+            f"{self.base_url}?{urlencode(query)}",
+            headers={
+                "Accept": "application/json",
+                "User-Agent": "CampusRent scheduled public listing ingestion",
+            },
+        )
+
+        try:
+            with urlopen(request, timeout=15) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except HTTPError as exc:
+            raise RuntimeError(f"Trellistate request failed with HTTP {exc.code}.") from exc
+        except (URLError, TimeoutError, json.JSONDecodeError) as exc:
+            raise RuntimeError(f"Trellistate request failed: {exc}") from exc
+
+        records = [self._with_detail(record) for record in self._records(payload)]
+        return [item for record in records[:limit] if (item := self._to_ingest_item(record, city, state))]
+
+    def _records(self, payload: object) -> list[dict]:
+        if isinstance(payload, list):
+            return [item for item in payload if isinstance(item, dict)]
+        if not isinstance(payload, dict):
+            return []
+        for key in ("data", "listings", "items", "results"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                return [item for item in value if isinstance(item, dict)]
+        return []
+
+    def _with_detail(self, record: dict) -> dict:
+        api_url = record.get("api_url") or record.get("apiUrl")
+        if not isinstance(api_url, str) or not api_url.startswith(("http://", "https://")):
+            return record
+
+        request = Request(
+            api_url,
+            headers={
+                "Accept": "application/json",
+                "User-Agent": "CampusRent scheduled public listing ingestion",
+            },
+        )
+        try:
+            with urlopen(request, timeout=8) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except (HTTPError, URLError, TimeoutError, json.JSONDecodeError):
+            return record
+
+        detail = payload.get("data") if isinstance(payload, dict) else None
+        if not isinstance(detail, dict):
+            return record
+        return {**record, **detail}
+
+    def _to_ingest_item(
+        self,
+        record: dict,
+        fallback_city: str,
+        fallback_state: str | None,
+    ) -> ListingIngestItem | None:
+        source_url = self._source_url(record)
+        monthly_rent = record.get("price") or record.get("rent") or record.get("monthly_rent")
+        if not source_url or monthly_rent is None:
+            return None
+
+        try:
+            rent = int(monthly_rent)
+        except (TypeError, ValueError):
+            return None
+
+        if rent < 250 or rent > 25000:
+            return None
+
+        return ListingIngestItem(
+            source_listing_id=str(record.get("id") or source_url.rstrip("/").split("/")[-1]),
+            source_url=source_url,
+            title=str(record.get("title") or f"Rental listing in {fallback_city}")[:300],
+            description=record.get("description"),
+            address=self._address(record),
+            city=record.get("city") or fallback_city,
+            state=record.get("state") or fallback_state or "",
+            country=record.get("country") or "US",
+            postal_code=record.get("postal_code") or record.get("postalCode"),
+            latitude=self._decimal_or_none(record.get("latitude")),
+            longitude=self._decimal_or_none(record.get("longitude")),
+            monthly_rent=rent,
+            currency_code=record.get("currency") or record.get("currency_code") or "USD",
+            bedrooms=self._decimal_or_none(record.get("beds") or record.get("bedrooms")),
+            bathrooms=self._decimal_or_none(record.get("baths") or record.get("bathrooms")),
+            square_feet=self._int_or_none(record.get("square_feet") or record.get("squareFeet")),
+            contact_name=self._contact_value(record, "name"),
+            contact_phone=self._contact_value(record, "phone"),
+            contact_email=self._contact_value(record, "email"),
+            image_url=self._image_url(record),
+        )
+
+    def _source_url(self, record: dict) -> str | None:
+        for key in ("url", "source_url", "sourceUrl", "listing_url", "listingUrl"):
+            value = record.get(key)
+            if isinstance(value, str) and value.startswith(("http://", "https://")):
+                return value
+
+        listing_id = record.get("id")
+        if listing_id:
+            return f"https://trellistate.com/listings/{listing_id}"
+        return None
+
+    def _address(self, record: dict) -> str | None:
+        return (
+            record.get("address")
+            or record.get("address_line_1")
+            or record.get("addressLine1")
+            or record.get("formattedAddress")
+        )
+
+    def _decimal_or_none(self, value) -> Decimal | None:
+        if value is None:
+            return None
+        return Decimal(str(value))
+
+    def _int_or_none(self, value) -> int | None:
+        if value is None:
+            return None
+        return int(value)
+
+    def _contact_value(self, record: dict, key: str) -> str | None:
+        contact = record.get("contact")
+        if isinstance(contact, dict):
+            value = contact.get(key)
+            if isinstance(value, str):
+                return value
+        return None
+
+    def _image_url(self, record: dict) -> str | None:
+        for key in ("photo", "image_url", "imageUrl", "thumbnail"):
+            value = record.get(key)
+            if isinstance(value, str) and value.startswith(("http://", "https://")):
+                return value
+
+        photos = record.get("photos") or record.get("images")
+        if isinstance(photos, list):
+            for photo in photos:
+                if isinstance(photo, str) and photo.startswith(("http://", "https://")):
+                    return photo
+                if isinstance(photo, dict):
+                    value = photo.get("url")
+                    if isinstance(value, str) and value.startswith(("http://", "https://")):
+                        return value
+        return None
+
+
 class CraigslistRssRentalScraper(ListingScraper):
     key = "craigslist-rss-rentals"
     source_name = "Craigslist Public Rental RSS"
@@ -548,6 +789,7 @@ SCRAPERS: dict[str, ListingScraper] = {
     DemoGlobalHousingScraper.key: DemoGlobalHousingScraper(),
     DemoHtmlHousingScraper.key: DemoHtmlHousingScraper(),
     RentCastRentalScraper.key: RentCastRentalScraper(),
+    TrellistatePublicListingScraper.key: TrellistatePublicListingScraper(),
     CraigslistRssRentalScraper.key: CraigslistRssRentalScraper(),
 }
 

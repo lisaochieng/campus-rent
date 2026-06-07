@@ -27,13 +27,23 @@ from app.services.on_demand_ingestion import ingest_real_listings_for_school_if_
 from app.services.scam_detection import refresh_persisted_scam_signals
 from app.services.search_index import index_listing, get_search_client, search_listing_ids
 from app.services.school_matching import find_school_by_name
+from app.services.scraper_registry import normalize_us_state
 
 router = APIRouter(prefix="/listings", tags=["listings"])
 
 REAL_RECOMMENDATION_SOURCES = {
     "RentCast Rental Listings",
+    "Trellistate Public Listings",
     "Craigslist Public Rental RSS",
 }
+
+
+def school_state_variants(school: School) -> set[str]:
+    variants = {school.state}
+    normalized_state = normalize_us_state(school.state)
+    if normalized_state:
+        variants.add(normalized_state)
+    return variants
 
 
 def has_real_clickable_source(listing: Listing) -> bool:
@@ -142,7 +152,7 @@ def get_listing_filter_options(
         .options(selectinload(Listing.source), selectinload(Listing.scam_signals))
         .where(
             Listing.status == ListingStatus.ACTIVE,
-            Listing.state.ilike(school.state),
+            Listing.state.in_(school_state_variants(school)),
         )
     ).all()
 
@@ -263,7 +273,7 @@ def recommend_listings_for_student(
                 .where(
                     Listing.status == ListingStatus.ACTIVE,
                     Listing.city.ilike(school.city),
-                    Listing.state.ilike(school.state),
+                    Listing.state.in_(school_state_variants(school)),
                 )
                 .limit(250)
             )
@@ -274,7 +284,7 @@ def recommend_listings_for_student(
             .where(
                 Listing.status == ListingStatus.ACTIVE,
                 Listing.city.ilike(school.city),
-                Listing.state.ilike(school.state),
+                Listing.state.in_(school_state_variants(school)),
             )
             .limit(250)
         )
@@ -293,6 +303,8 @@ def recommend_listings_for_student(
             continue
         if (
             max_distance_miles is not None
+            and listing.latitude is not None
+            and listing.longitude is not None
             and result.distance_miles > max_distance_miles
         ):
             continue
