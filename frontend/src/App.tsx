@@ -612,7 +612,9 @@ export default function App() {
               <ListingImage src={item.listing.image_url} title={item.listing.title} />
               <div className="card-topline">
                 <span>{item.listing.bedrooms ?? "?"} bd | {item.listing.bathrooms ?? "?"} ba</span>
-                <strong>{item.campus_rent_score}</strong>
+                <strong className="score-ring" style={{ "--score": item.campus_rent_score } as React.CSSProperties}>
+                  {item.campus_rent_score}
+                </strong>
               </div>
               <h3>{item.listing.title}</h3>
               <p>{item.listing.address ?? `${item.listing.city}, ${item.listing.state}`}</p>
@@ -772,7 +774,9 @@ function ListingSearchResultCard({
       <ListingImage src={result.image_url} title={result.title} />
       <div className="card-topline">
         <span>{result.source_name}</span>
-        <strong>{result.rank}</strong>
+        <strong className="score-ring" style={{ "--score": Math.max(72, 98 - result.rank * 4) } as React.CSSProperties}>
+          {Math.max(72, 98 - result.rank * 4)}
+        </strong>
       </div>
       <h3>{result.title}</h3>
       <p>{result.snippet ?? "Open the source page to review price, availability, photos, and contact information."}</p>
